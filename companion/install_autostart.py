@@ -19,6 +19,9 @@ COMPANION_DIR = os.path.dirname(os.path.abspath(__file__))
 HOST_MANIFEST = os.path.join(COMPANION_DIR, f'{HOST_NAME}.json')
 HOST_CMD = os.path.join(COMPANION_DIR, 'native_host.cmd')
 
+# IDs of the store-published extension (Edge Add-ons, Chrome Web Store); store installs are not always found by name.
+KNOWN_STORE_IDS: list[str] = []
+
 REG_KEYS = [
     rf'Software\Google\Chrome\NativeMessagingHosts\{HOST_NAME}',
     rf'Software\Microsoft\Edge\NativeMessagingHosts\{HOST_NAME}',
@@ -112,7 +115,7 @@ def main():
         print('Uninstalled Native Messaging host:', HOST_NAME)
         return
 
-    ids = sorted(set(discover_extension_ids() + [x.strip() for x in args.ext_id if x.strip()]))
+    ids = sorted(set(discover_extension_ids() + KNOWN_STORE_IDS + [x.strip() for x in args.ext_id if x.strip()]))
     manifest_obj = install(ids)
     print('Installed Native Messaging host:', HOST_MANIFEST)
     print('Allowed origins:', ', '.join(manifest_obj['allowed_origins']))

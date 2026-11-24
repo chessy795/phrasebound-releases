@@ -30,6 +30,8 @@ class ModelFile:
 
 # sizes and SHA-256 are the LFS metadata at the pinned Hub revisions.
 CATALOG = {
+    'plamo-2b': ModelFile('pfnet/plamo-3-translate-2b-GGUF', 'caf0267797e8a4ae418e7d8c480746be2ea6040c',
+        'plamo-3-translate-2b-Q4_K_M.gguf', 1807203040, '1ffd9073afcc70e35ccc942428aa2b73d7aa2b9ea779bf504b775369e0276c13', 'PLaMo Community License'),
     'plamo-0.8b': ModelFile('pfnet/plamo-3-translate-0.8b-GGUF', '1cf96ae02133958a20074bfdfab76517bb737d00',
         'plamo-3-translate-0.8b-Q4_K_M.gguf', 573126848, '70891ec70dc7ab4205745a38307867c2881b99239f20327927633abfe4bc9ec6', 'PLaMo Community License'),
     'hy-mt2': ModelFile('tencent/Hy-MT2-1.8B-GGUF', 'a0c709d9fac510f2c807aa3af52872340dc37a4a',

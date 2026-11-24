@@ -164,3 +164,5 @@ kbd {
 .pp-more > summary::before { content: '▸ '; }
 .pp-more[open] > summary::before { content: '▾ '; }
 .pp-more > section { margin-top: 8px; }
+.pp-install { display: block; margin-top: 4px; padding: 3px 8px; font-size: 11px; font-weight: 600; border: 0; border-radius: 6px; cursor: pointer; background: var(--pb-accent, #e8833a); color: #fff; }
+.pp-install:hover { filter: brightness(1.08); }

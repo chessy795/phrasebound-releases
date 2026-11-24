@@ -1,3 +1,4 @@
+const COMPANION_SETUP_URL = 'https://github.com/chessy795/phrasebound-releases/releases/latest/download/PhraseboundSetup.exe';
 // Unified Toolbar Action Popup Controller (ext/popup.js) — strictly zero innerHTML
 (() => {
   'use strict';
@@ -93,10 +94,23 @@
           if (r && r.ok) {
             if (dot) dot.classList.add('online');
             const active = r.active_mt || curSet.mtModel || 'plamo-2b';
-            if (st) st.textContent = `Local AI online · ${active}`;
+            const dl = r.model_download;
+            if (st) st.textContent = dl && dl.state === 'downloading' && dl.total
+              ? `Local AI: downloading translator ${Math.floor(100 * dl.bytes / dl.total)}%`
+              : `Local AI online · ${active}`;
           } else {
             if (dot) dot.classList.add('offline');
             if (st) st.textContent = 'Offline dicts · Free Web AI ready';
+            if (/Windows/.test(navigator.userAgent) && st && !$('compInstall')) {
+              const b = document.createElement('button');
+              b.type = 'button';
+              b.id = 'compInstall';
+              b.className = 'pp-install';
+              b.textContent = 'Get free offline AI (Windows)';
+              b.title = 'Downloads the Phrasebound companion: offline translation and subtitle reading on this PC';
+              b.addEventListener('click', () => chrome.tabs.create({ url: COMPANION_SETUP_URL }));
+              st.after(b);
+            }
           }
         });
       });

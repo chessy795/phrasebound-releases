@@ -59,7 +59,7 @@ PORT = int(os.environ.get('YT_STUDY_PORT', '8787'))
 _BUNDLED_LLAMA = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'llama', 'llama-server.exe')  # portable install layout
 LLAMA_SERVER = os.environ.get('YT_STUDY_LLAMA') or (os.path.abspath(_BUNDLED_LLAMA) if os.path.isfile(_BUNDLED_LLAMA) else None) or shutil.which('llama-server') or r'G:\mt_models\llamacpp\llama-server.exe'
 _PLAMO_2B_BUNDLED = os.path.join(os.path.dirname(__file__), 'models', 'plamo-3-translate-2b-Q4_K_M.gguf')
-PLAMO_2B_GGUF = os.environ.get('YT_STUDY_PLAMO2B_GGUF') or (_PLAMO_2B_BUNDLED if os.path.isfile(_PLAMO_2B_BUNDLED) else r'G:\mt_models\plamo3-2b-gguf\plamo-3-translate-2b-Q4_K_M.gguf')
+PLAMO_2B_GGUF = os.environ.get('YT_STUDY_PLAMO2B_GGUF') or (_PLAMO_2B_BUNDLED if os.path.isfile(_PLAMO_2B_BUNDLED) else model_manager.model_path('YT_STUDY_PLAMO2B_GGUF', r'G:\mt_models\plamo3-2b-gguf\plamo-3-translate-2b-Q4_K_M.gguf', 'plamo-2b'))
 PLAMO_GGUF = model_manager.model_path('YT_STUDY_PLAMO_GGUF', r'G:\mt_models\plamo3-0.8b-gguf\plamo-3-translate-0.8b-Q4_K_M.gguf', 'plamo-0.8b')
 INDEX_2B_Q4_GGUF = model_manager.model_path('YT_STUDY_INDEX2B_Q4_GGUF', os.path.join(os.path.dirname(__file__), 'models', 'Index-Translate-2B-Q4_K_M.gguf'), 'index-2b-q4')
 HYMT2_GGUF = model_manager.model_path('YT_STUDY_HYMT2_GGUF', r'G:\mt_models\hymt2\Hy-MT2-1.8B-Q8_0.gguf', 'hy-mt2')
@@ -711,6 +711,7 @@ def health():
         'mt_device': _mt_device,
         'mt_error': _last_mt_error,
         'mt_models': avail_mt,
+        'model_download': next((dict(j) for j in downloads.jobs.values() if j.get('state') in ('downloading', 'verifying', 'error')), None),
         'live_caption_socket': True,
         'live_whisper_tiny': live_whisper_available(),
         'live_whisper_base': live_whisper_available('live_base'),
@@ -3331,4 +3332,12 @@ if __name__ == '__main__':
         _updater.start_background()
     except Exception as e:
         print(f'Updater not started: {e}')
+    try:   # slim install ships no translator: fetch the one that suits this PC on first start
+        if not any(os.path.isfile(p) for p in MT_MODELS.values()):
+            _rec = model_manager.detect_hardware(LLAMA_SERVER)['recommended']['mtModel']
+            _rec = _rec if _rec in downloads.catalog else 'plamo-2b'
+            downloads.start(_rec)
+            print(f'No translator found, downloading {_rec} (one time)')
+    except Exception as e:
+        print(f'Translator download not started: {e}')
     uvicorn.run(app, host='127.0.0.1', port=PORT, log_level='warning')
