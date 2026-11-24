@@ -1539,6 +1539,32 @@ class ExplainReq(BaseModel):
     task_hint: str = ''  # The extension sends a UI hint. The server owns the instructions.
     context: str = ''
     past_scenes: list[PastStudyScene] = Field(default_factory=list, max_length=2)
+    idiom_senses: list[str] = Field(default_factory=list, max_length=4)  # glosses from the extension's idiom database
+
+
+def study_references(word, lemma, source, target, idiom_senses):
+    """Dictionary and idiom-database senses the model must choose from. Returns (refs, source names)."""
+    refs, names = [], []
+    for g in idiom_senses[:4]:
+        g = clean_stage_text(str(g))[:200]
+        if g:
+            refs.append({'source': 'Phrasebound idiom list', 'sense': g})
+    if refs:
+        names.append('Phrasebound idiom list')
+    try:
+        found = dict_multi(DictReq(words=[w for w in dict.fromkeys([word, lemma]) if w], lang=source, tl=target))
+    except Exception:
+        found = {}
+    for src in (found.get('sources') or [])[:3]:
+        n = 0
+        for ent in src.get('entries') or []:
+            for d in (ent.get('defs') or [])[:4]:
+                if n < 6 and isinstance(d, str) and d.strip():
+                    refs.append({'source': src['name'], 'headword': ent.get('head') or src.get('word'), 'sense': d.strip()[:240]})
+                    n += 1
+        if n and src['name'] not in names:
+            names.append(src['name'])
+    return refs[:16], names
 
 
 def _sanitize_untrusted_ctx(title: str, context: str) -> str:
@@ -1610,6 +1636,8 @@ def explain(req: ExplainReq):
     original = _active_mt_key
     raw = ''
     history_count = 0
+    ref_items, ref_names = study_references(word, clean_stage_text(req.lemma)[:500], source.split('-')[0], target,
+                                            req.idiom_senses) if req.mode == 'explain' else ([], [])
     if model and ensure_plamo_server(model):
         try:
             # Proportional comparisons need both changing quantities. Generate the sentence
@@ -1645,6 +1673,11 @@ def explain(req: ExplainReq):
                       + '. The user message contains quoted study material as JSON.')
             context = dict(selection=word, lemma=req.lemma[:500], line=line or word,
                            source_language=source, title=req.title[:120], context=req.context[:280])
+            if req.mode == 'explain' and ref_items:
+                context['reference_senses'] = ref_items
+                prompt += (' reference_senses come from dictionaries. Pick the sense that fits the line and base meaning on it. '
+                           'Never add a sense that is missing from reference_senses. If none fits the line, set usage to unclear '
+                           'and say in note that the listed senses do not fit. Never mention reference_senses or dictionaries in meaning or note.')
             if line and req.past_scenes:
                 past = [dict(line=text, sense=scene.sense) for scene in req.past_scenes
                         if (text := clean_stage_text(scene.line)) and text != line]
@@ -1706,7 +1739,8 @@ def explain(req: ExplainReq):
                 raw = ' '.join(filter(None, (result['word_gloss'], result['subtext_note'])))
             else:
                 return dict(result, ok=False, contextual=False, error='The local model returned an incomplete contextual gloss.')
-        return dict(result, ok=True, explanation=raw, model=model, history_count=history_count)
+        return dict(result, ok=True, explanation=raw, model=model, history_count=history_count,
+                    grounded=bool(ref_items), sources=ref_names)
     if req.mode == 'explain':
         lookup = dict_lookup(DictReq(words=[word, req.lemma or word], lang=source.split('-')[0]))
         entries = lookup.get('entries') or []

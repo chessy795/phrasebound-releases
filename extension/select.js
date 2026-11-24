@@ -1628,6 +1628,7 @@
     '.ss-card.ss-wide { width: min(780px, calc(100vw - 24px)); }',
     '.ss-topbar { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid rgba(24, 28, 32, 0.10); }',
     '.ss-icon-btn { display:inline-grid; place-items:center; min-width:30px; min-height:30px; vertical-align:middle; }',
+    '.ss-explain-src { margin-top:6px; font-size:12px; color:#6b7280; } .ss-explain-guess { color:#b45309; }',
     '.ss-icon-btn.ss-icon-text { display:inline-flex; align-items:center; gap:4px; padding:0 8px; font-size:13px; }',
     '.ss-orig .ss-icon-btn,.ss-tr-main .ss-icon-btn { margin-inline-end:6px; }',
     '.ss-tr-main rt { font-size:.68em; opacity:.8; user-select:none; }',
@@ -3407,7 +3408,11 @@
             task_hint: actionDef.promptHint,
             target_lang: cfg.tl,
             source_lang: sourceLang,
-            title: getDocTitle()
+            title: getDocTitle(),
+            idiom_senses: (idioms || []).filter(function (it) {
+              var lb = it && typeof it === 'object' ? (it.canonical || it.phrase || it.lemma || it.form || it.match || it.text || '') : '';
+              return lb && (it.gloss || it.meaning) && wordToExplain.toLowerCase().indexOf(String(lb).toLowerCase()) !== -1;
+            }).map(function (it) { return String(it.gloss || it.meaning); }).slice(0, 4)
           },
           method: 'POST',
           timeoutMs: 60000,
@@ -3422,6 +3427,14 @@
               : (resp?.error || 'Local explanation unavailable. Select the action again to retry.');
           } else {
             contentNode.textContent = formatExplanationText(resp).replace(/\*\*([^*\n]+)\*\*/g, '$1');
+            if (modeId === 'explain') {
+              expBox.appendChild(makeEl(doc, 'div', {
+                className: 'ss-explain-src' + (resp.grounded ? '' : ' ss-explain-guess'),
+                text: resp.grounded && resp.sources && resp.sources.length
+                  ? 'Based on: ' + resp.sources.join(', ')
+                  : 'No dictionary entry found. This is the AI\u2019s guess, so double-check it.'
+              }));
+            }
           }
           positionFloatingHost(host, popupState.anchorRect);
         });
@@ -3922,7 +3935,7 @@
         mainTrBox.hidden = false;
         trLabelNode.hidden = dictWrap.hidden;
         mainTrBox.textContent = 'Translating…';
-        translateSingleText(selectedText, { context: popupState.surroundingLine, scene: 'selection' }).then(function (res) {
+        return translateSingleText(selectedText, { context: popupState.surroundingLine, scene: 'selection' }).then(function (res) {
           if (popupState.reqId !== reqId || run !== translationRun) return;
           clearChildren(mainTrBox);
           if (res.ok) {
@@ -3956,8 +3969,10 @@
           positionFloatingHost(host, popupState.anchorRect);
         });
       }
-      if (!scanInfo) runTranslation();
-      if (!startInCompare && !recallItem) runExplain(selectedText, 'explain', true);
+      // Explain needs a different local model; start it after the translation so the two never queue against each other.
+      var autoExplain = function () { if (!startInCompare && !recallItem && host.isConnected) runExplain(selectedText, 'explain', true); };
+      if (!scanInfo) Promise.resolve(runTranslation()).then(autoExplain, autoExplain);
+      else autoExplain();
 
       if (startInCompare) {
         runCompare();
