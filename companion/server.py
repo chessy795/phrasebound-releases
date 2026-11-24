@@ -599,7 +599,7 @@ def _gpu_free_bytes():
 def pick_side_model():
     """Largest study model that fits in the graphics memory that is actually free, with 1 GB to spare."""
     free = _gpu_free_bytes()
-    for key in ('qwen3.5-9b', 'qwen3.5-4b', 'qwen3.5-2b'):
+    for key in ('qwen3.5-4b', 'qwen3.5-2b'):  # 4B is enough once answers are grounded in dictionaries
         path = MT_MODELS.get(key, '')
         if os.path.isfile(path) and os.path.getsize(path) * 1.2 + 1e9 <= free:
             return key

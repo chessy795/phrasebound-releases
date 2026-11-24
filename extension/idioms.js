@@ -490,6 +490,7 @@
         deBracket: !!opts.deBracket,
         lead: opts.lead || '',
         allowComma: /,/.test(metaObj.display || ''),
+        allowHyphen: /[-‐]/.test(metaObj.display || ''),
       });
       let arr = byFirst.get(first);
       if (!arr) byFirst.set(first, (arr = []));
@@ -532,7 +533,8 @@
         maxBand = Number(ex.maxBand || 3);
         const keyList = Array.isArray(keys) && keys.length ? keys : [display];
         const acceptPts = (pts, rawSrc) => {
-          if (pts.length >= 2) {
+          // A hyphenated set phrase is one word to the splitter (cache-cache, еле-еле, esconde-esconde)
+          if (pts.length >= 2 || (pts.length === 1 && /\p{L}[-‐]\p{L}/u.test(rawSrc || ''))) {
             rawPatterns.push(pts);
           } else if (langCode === 'de' && pts.length === 1 && splitGermanSepVerb(pts[0])) {
             rawPatterns.push(pts);
@@ -611,7 +613,7 @@
       };
 
       for (const pts of rawPatterns) {
-        pushParts(pts, baseMeta, { deBracket: false, lead: rowLead });
+        pushParts(pts, baseMeta, { deBracket: false, lead: rowLead, single: pts.length === 1 && /\p{L}[-\u2010]\p{L}/u.test(pts[0]) });
 
         // German V2 separable-verb & verb-final idiom inversion:
         // 1) Pure separable verb ("vorstellen" -> ["stellen", "**", "vor"], or ["sich", "vorstellen"] -> ["stellen", "**", "vor"])
@@ -1129,7 +1131,7 @@
       }
     }
     const brk = (t) => langCode === 'en'
-      ? t.hardPunctBefore || t.hyphenBefore || (t.commaBefore && !(cand && cand.allowComma))
+      ? t.hardPunctBefore || (t.hyphenBefore && !(cand && cand.allowHyphen)) || (t.commaBefore && !(cand && cand.allowComma))
       : t.hardPunctBefore;
     if (p === '<poss>' || p === '<refl>') {
       const t = wordToks[wi];
