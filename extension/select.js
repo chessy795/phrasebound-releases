@@ -1624,12 +1624,13 @@
 
   var POPUP_SHADOW_CSS = [
     ':host { all: initial; position: fixed; z-index: 2147483646; color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans CJK TC", sans-serif; color: #181c20; }',
-    '.ss-card { width: min(440px, calc(100vw - 24px)); max-height: min(72vh, 520px); overflow-y: auto; background: #ffffff; border: 1px solid rgba(24, 28, 32, 0.14); border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16); padding: 10px 12px; box-sizing: border-box; font-size: 13.5px; line-height: 1.5; }',
-    '.ss-card.ss-wide { width: min(680px, calc(100vw - 24px)); }',
+    '.ss-card { width: min(580px, calc(100vw - 24px)); max-height: min(78vh, 640px); overflow-y: auto; background: #ffffff; border: 1px solid rgba(24, 28, 32, 0.14); border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16); padding: 10px 12px; box-sizing: border-box; font-size: 13.5px; line-height: 1.5; }',
+    '.ss-card.ss-wide { width: min(780px, calc(100vw - 24px)); }',
     '.ss-topbar { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid rgba(24, 28, 32, 0.10); }',
     '.ss-icon-btn { display:inline-grid; place-items:center; min-width:30px; min-height:30px; vertical-align:middle; }',
     '.ss-orig .ss-icon-btn,.ss-tr-main .ss-icon-btn { margin-inline-end:6px; }',
-    '.ss-tr-main rt { font-size:.62em; opacity:.85; user-select:none; }',
+    '.ss-tr-main rt { font-size:.68em; opacity:.8; user-select:none; }',
+    '.ss-read-line { font-size: 14px; line-height: 1.55; color: #6b7280; margin-top: 4px; white-space: normal; user-select: text; }',
     '.ss-tr-main ruby { ruby-position:over; }',
     '.ss-spacer { flex: 1 1 auto; }',
     '.ss-btn { appearance: none; border: 1px solid rgba(24, 28, 32, 0.14); background: #f3f4f6; color: #1f2937; border-radius: 6px; padding: 3px 8px; font-size: 11.5px; font-weight: 500; cursor: pointer; line-height: 1.35; transition: background 0.12s ease, border-color 0.12s ease; }',
@@ -1637,10 +1638,10 @@
     '.ss-btn.ss-active { background: #0f5c5c; border-color: #0f5c5c; color: #ffffff; }',
     '.ss-btn-close { padding: 3px 7px; font-weight: 600; color: #6b7280; background: transparent; border-color: transparent; }',
     '.ss-btn-close:hover { color: #111827; background: #f3f4f6; }',
-    '.ss-orig { background: #f6f7f8; border-left: 2px solid #0f5c5c; border-radius: 4px; padding: 6px 9px; margin-bottom: 8px; font-size: 12.5px; color: #374151; white-space: pre-wrap; word-break: break-word; }',
+    '.ss-orig { background: #f6f7f8; border-left: 2px solid #0f5c5c; border-radius: 4px; padding: 6px 9px; margin-bottom: 10px; font-size: 16px; line-height: 1.55; color: #374151; white-space: pre-wrap; word-break: break-word; }',
     '.ss-orig[hidden] { display: none; }',
     '.ss-idiom-hl { background: rgba(217, 119, 6, 0.14); color: inherit; border-bottom: 1.5px solid #d97706; border-radius: 2px; padding: 0 2px; }',
-    '.ss-tr-main { font-size: 14px; color: #111827; white-space: pre-wrap; word-break: break-word; min-height: 20px; }',
+    '.ss-tr-main { font-size: 17px; line-height: 1.6; color: #111827; white-space: pre-wrap; word-break: break-word; min-height: 20px; }',
     '.ss-muted { color: #6b7280; font-size: 12px; }',
     '.ss-err { color: #b91c1c; font-size: 12.5px; }',
     '.ss-compare-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 8px; margin-top: 8px; }',
@@ -1691,6 +1692,7 @@
     '  .ss-btn-close:hover { background: #2c3038; color: #ffffff; }',
     '  .ss-orig { background: #242830; border-left-color: #2a8c82; color: #d1d5db; }',
     '  .ss-tr-main { color: #f3f4f6; }',
+    '  .ss-read-line { color: #9ca3af; }',
     '  .ss-muted { color: #9ca3af; }',
     '  .ss-err { color: #f87171; }',
     '  .ss-compare-col { background: #242830; border-color: rgba(255,255,255,0.10); }',
@@ -1949,6 +1951,26 @@
         else rt.appendChild(doc.createTextNode(sg));
       }
       return rt;
+    }
+
+    function webReadingLine(text, lg, dict) {
+      var L = win.SS_LANG, RD = win.SS_READINGS;
+      if (!L || !RD || !dict) return '';
+      var toks = L.get(lg).split(text);
+      if ((lg === 'yue' || lg === 'zh') && typeof RD.mergeCjkDictTokens === 'function') toks = RD.mergeCjkDictTokens(toks, lg, dict, null);
+      var mode = cfg.readingAid && cfg.readingAid !== 'off' ? cfg.readingAid : 'romaji';
+      var out = [], any = false;
+      for (var i = 0; i < toks.length; i++) {
+        var tk = toks[i];
+        if (!tk.word) { var pn = String(tk.w).trim(); if (pn) out.push(pn); continue; }
+        var aid = RD.lookupTokenAid(tk.w, lg, dict, { mode: mode, showPitchAccent: false });
+        var r = '';
+        if (aid && Array.isArray(aid.reading)) r = aid.reading.map(function (x) { return x[1] || x[0] || ''; }).join('');
+        else if (aid && typeof aid.reading === 'string') r = aid.reading;
+        if (r && r !== tk.w) any = true;
+        out.push(lg === 'zh' ? (r || tk.w).toLowerCase() : (r || tk.w));   // CEDICT surname readings come capitalised
+      }
+      return any ? out.join(' ').replace(/ ([,.!?;:，。！？；：、）」』)])/g, '$1').replace(/([（「『(]) /g, '$1') : '';
     }
 
     function appendWebTokensToParent(parentEl, segText, normLg, richDict, wantAid) {
@@ -3307,7 +3329,7 @@
       popupState.surroundingLine = surroundingLine || selectedText;
       popupState.scanNode = scanInfo?.node || null;
       popupState.currentTranslation = '';
-      popupState.showingOriginal = false;
+      popupState.showingOriginal = true;
       popupState.compareOpen = false;
       popupState.anchorRect = anchorRect;
 
@@ -3321,7 +3343,7 @@
 
       var idioms = findIdiomMatches(selectedText);
       var origBox = buildHighlightedSourceNode(selectedText, idioms);
-      origBox.hidden = true;
+      origBox.hidden = !popupState.showingOriginal;
 
       var mainTrBox = makeEl(doc, 'div', { className: 'ss-tr-main' }, [
         makeEl(doc, 'span', { className: 'ss-muted', text: 'Translating…' })
@@ -3564,7 +3586,7 @@
         type: 'button', className: 'ss-btn', text: 'Examples', onClick: requestExamples,
       }) : null;
       setIcon(btnOrig, 'original', 'Original');
-      btnOrig.setAttribute('aria-expanded','false');
+      btnOrig.setAttribute('aria-expanded', String(popupState.showingOriginal)); btnOrig.classList.toggle('ss-active', popupState.showingOriginal);
       const compareTip = btnCompare.textContent;
       setIcon(btnCompare, 'compare', 'Compare translations');
       btnCompare.title = compareTip;
@@ -3903,6 +3925,13 @@
             if (cfg.webReaderAid !== false && cfg.readingAid !== 'off') {
               ensureWebReadDict(lang).then(function (dict) {
                 if (!dict || !line.isConnected || run !== translationRun) return;
+                if (/^(zh|yue|ja|ko)$/.test(lang) && res.text.length > 6) {
+                  // Whole sentences: reading on its own line under the text, not crammed above each character.
+                  const reading = webReadingLine(res.text, lang, dict);
+                  if (reading) mainTrBox.appendChild(makeEl(doc, 'div', { className: 'ss-read-line', lang: lang + '-Latn', text: reading }));
+                  positionFloatingHost(host, popupState.anchorRect);
+                  return;
+                }
                 const fragment = doc.createDocumentFragment();
                 appendWebTokensToParent(fragment, res.text, lang, dict, true);
                 line.replaceChildren(fragment);
