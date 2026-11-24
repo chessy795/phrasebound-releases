@@ -1,4 +1,4 @@
-# Phrasebound: complete feature brief (v1.1.0, 24 Nov 2026)
+# Phrasebound: complete feature brief (v1.1.1, 24 Nov 2026)
 
 **What it is for:** learning a language from real videos and web pages through **formulaic expressions**: idioms, set phrases, sentence frames and social formulas. It applies the IdiomsTube idea (show learners the formulaic language in authentic video) to any video as it plays, in 12 languages, with free AI that runs on the learner's own computer.
 
@@ -66,11 +66,36 @@ No account, no ads, no analytics. Saved items stay in the browser. Online lookup
 - A clean-PC test of the companion, and a run on several Hong Kong videos.
 - The Chrome Web Store listing (prepared, not submitted).
 
-## Install (Windows)
-1. Unzip `PhraseboundCompanion_Windows.zip` somewhere you will keep it.
-2. In Chrome or Edge open `chrome://extensions`, turn on Developer mode, click **Load unpacked** and choose the `extension` folder inside it.
-3. Double-click **Set up (run once).bat** and restart the browser.
+## Install
+1. Install the extension in Edge or Chrome.
+2. Optional, Windows only: for offline translation and reading subtitles burned into the picture, click **Get free offline AI** in the extension's popup, or download [PhraseboundSetup.exe](https://github.com/chessy795/phrasebound-releases/releases/latest/download/PhraseboundSetup.exe) and run it. It downloads about 180 MB, connects itself to the browser, and fetches the translation model that suits the PC on first start. Windows may warn about an unknown publisher; choose More info, then Run anyway.
 
 Updates arrive automatically: the companion checks this repo every 12 hours and downloads only changed files.
 
-Dictionary and expression data come from openly licensed sources; see `extension/credits.html`. The translation model is PLaMo 3 Translate 2B by Preferred Networks (Built with PLaMo, PLaMo Community License), shipped in the Windows download, not in this repo.
+Dictionary and expression data come from openly licensed sources; see `extension/credits.html`. Translation models are downloaded from their publishers (for example PLaMo 3 Translate 2B by Preferred Networks: Built with PLaMo, PLaMo Community License).
+
+## Privacy policy
+
+Last updated: 24 November 2026
+
+Phrasebound is a browser extension for language learning. It has no accounts, no advertising and no analytics, and the developer receives none of your data.
+
+### What stays on your device
+Your settings, saved words, saved subtitle lines and review progress are stored in your browser's own extension storage. They never leave your device unless you export them yourself.
+
+### What is sent to other services, and only when you use the feature
+- **Dictionary lookups:** the word or phrase you look up may be sent to Wiktionary (Wikimedia) or to an online learner dictionary to fetch a definition or a pronunciation recording.
+- **Online translation:** if you choose an online translator in the settings, the subtitle line or text you translate is sent to that service (Google Translate, or Microsoft Translator with your own key).
+- **Your own AI service:** if you enter the address of an AI service in the settings, the text you ask about is sent to that address.
+- **The optional companion app** runs on your own computer at 127.0.0.1. Text, images and audio sent to it stay on your computer. It downloads its translation model once from Hugging Face and checks this GitHub repository for code updates every 12 hours; neither request includes anything about you.
+
+These services handle the text under their own privacy policies. Phrasebound sends no information about you, only the text you asked about.
+
+### Web pages and videos
+The extension reads subtitles and page text in your browser so it can highlight expressions and show lookups. This happens locally. Phrasebound does not record your browsing history and does not send page content anywhere except for the lookups and translations described above.
+
+### Children
+Phrasebound is not directed at children under 13.
+
+### Contact
+Questions: open an issue at https://github.com/chessy795/phrasebound-releases/issues

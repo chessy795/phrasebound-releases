@@ -102,3 +102,7 @@ h1 { font-size: 1.43rem; font-weight: 680; }
   .media-header nav a { font-size: .78rem; }
   .media-controls { margin-left: 0; }
 }
+
+.media-resources { margin-top: 24px; }
+.media-resources h2 { font-size: 16px; margin: 0 0 6px; }
+.media-resources p { margin: 0; }
