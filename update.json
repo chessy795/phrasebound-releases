@@ -1,6 +1,6 @@
 {
-"version": "1.1.1",
-"files_base": "https://raw.githubusercontent.com/chessy795/phrasebound-releases/2347252ae395c8555ab979419aec83920cbea215/",
+"version": "1.1.2",
+"files_base": "https://raw.githubusercontent.com/chessy795/phrasebound-releases/fbe2cb46417e86e92b61fcbec86c082edf2ac087/",
 "files": {
 "extension/audio_clip.js": "e1f5259ba8de8fba2b326a90373bf5d74308597d90621548558ff0b0814c1aae",
 "extension/background.js": "4850dfdeb2b272eb3862d4af2f9d41a37efc1983c5ba19f02878cee8a9c45841",
@@ -17,9 +17,9 @@
 "extension/literary.js": "467e3da5776f5906839cfb97ca9cf13e9a649a392269d90b4047008599a7b87e",
 "extension/live_audio.js": "166fc42a8871d665ba3a34436d998e495f59b3c22dd172d853f7620280216ea0",
 "extension/local-study.js": "a8601bb691a333fbb9a9ec858ec685ff1b151a44951b4413265a619e28c05c37",
-"extension/manifest.json": "3cc8e023333c94f6a7bbdc3c42fcd1dded7d3ea2d10f7e76df73d659f4516da5",
-"extension/media-catalogue.css": "192818bd7a6d0ad4d2c470757f8ed8548a3de810b721a29b8f72fe0d92876814",
-"extension/media-catalogue.html": "37c8a970285f77072b45ccc1c3169671a49cfe9c14806b6135bf37b2c5502949",
+"extension/manifest.json": "3a696ace9279a15aa913795e7810b256012d5dfb6bebb741811e4c0cf05bc086",
+"extension/media-catalogue.css": "f789c20d9b3205e7b02cffc28052169b779c9bba797dcd90703aed12b9b56882",
+"extension/media-catalogue.html": "ed8c595eec23165f69b31e9a5bd8bfcec9b00f5c8d696a1dd13717923bd57246",
 "extension/media-catalogue.js": "9545d5c89e94dc7f3905fca4a1a9a76bdfd115415c1568895c4602e02405e247",
 "extension/offscreen.html": "986a2a320834c22400c599f0daf0aee1981571b8c1b8901667ee819554a2c1bb",
 "extension/offscreen.js": "18ac5bbff435c8b45f3d00e8ad030c063f88731d957a2b8fcd53350234568639",
