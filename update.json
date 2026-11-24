@@ -1,6 +1,6 @@
 {
-"version": "1.1.6",
-"files_base": "https://raw.githubusercontent.com/chessy795/phrasebound-releases/7c3ff4f2be0103a78fab20f2a4f2386adba74720/",
+"version": "1.1.7",
+"files_base": "https://raw.githubusercontent.com/chessy795/phrasebound-releases/6c30b8719ad34f329255079217133692e4c421f2/",
 "files": {
 "extension/audio_clip.js": "e1f5259ba8de8fba2b326a90373bf5d74308597d90621548558ff0b0814c1aae",
 "extension/background.js": "4850dfdeb2b272eb3862d4af2f9d41a37efc1983c5ba19f02878cee8a9c45841",
@@ -17,7 +17,7 @@
 "extension/literary.js": "467e3da5776f5906839cfb97ca9cf13e9a649a392269d90b4047008599a7b87e",
 "extension/live_audio.js": "166fc42a8871d665ba3a34436d998e495f59b3c22dd172d853f7620280216ea0",
 "extension/local-study.js": "a8601bb691a333fbb9a9ec858ec685ff1b151a44951b4413265a619e28c05c37",
-"extension/manifest.json": "c0a020fb3823a8212d2075ebf3fff681864a6e35783835268eb71178f84f9f8b",
+"extension/manifest.json": "a86ba23186a74932e1d61edf741630533074d74aab28e3949f2595cf58e0b680",
 "extension/media-catalogue.css": "f789c20d9b3205e7b02cffc28052169b779c9bba797dcd90703aed12b9b56882",
 "extension/media-catalogue.html": "177a085a038a2e721a0670330f8d4354d3014b3714a2d9dc4d7ede39856d73b9",
 "extension/media-catalogue.js": "9545d5c89e94dc7f3905fca4a1a9a76bdfd115415c1568895c4602e02405e247",
@@ -44,7 +44,7 @@
 "extension/review.html": "89d1719bd7dbacf1b1c6f9b5afd89347da2a7244eb43acdd27b691b034de5b65",
 "extension/review.js": "e61ec42ae1e55f0e3b5a9c4bec697223a2168b50c1347cc95a64e9753688ec69",
 "extension/scene_pair.js": "6ba1b33ce730fb014284a4952828ed23eb359bd156c1dd00f31cf6dacfab0074",
-"extension/select.js": "c53a69a2da0aa3855ab811380aed7acf1b68b59b8afad77d2720c5b5ef101dd0",
+"extension/select.js": "bb61157cb178f61f58039801fb44657884893776402766e23d69ba86acd56fd6",
 "extension/sense-memory.js": "1876a81a23dfc275a1494b1e1cc327207626d9a07afb1200e878c9e68cc407fc",
 "extension/storage.js": "3181ca93c8d18df3292dbf7e0befd4cd9fbb9fa1e1bd4bfd178091a4e9aaaa56",
 "extension/top-idioms.css": "51cc6cf2ad651cbfb6c8422c0a6e28c0fd12145d0a1f8808f5b1236e7959b8c9",
@@ -2662,7 +2662,7 @@
 "companion/native_host.cmd": "6b914aea0cf70a8019754afa7c763150863cae023f49b6b24c2f5e7ab4fbcf60",
 "companion/native_host.py": "44bcd6e204b95261c8ccc1c350140ee0b9c7319bbc5c6cfb7b5771a1f73959e2",
 "companion/pdf_tools.py": "57688407f29607a2198e32f3c89a3e86fb95f959796eeaddc0248aa66f88db3c",
-"companion/server.py": "2de5094ed9ce39b375cf557bbc7111371ef6ff99e1f0241f63e26c365f18236b",
+"companion/server.py": "0c71f362a8e33bbcc841f82a27406b392bcce356160f5ef12269d706a84ddfc4",
 "companion/subtitle_ocr.py": "3e296dc311fda293a89d08045dc2cfe1aa27603965445cf59c2ff1a5bc3392b5",
 "companion/updater.py": "b4604387bb67b0df49d4f3aadabbcfd811d677d3e344ea44e9b6c655da3c9869"
 }
