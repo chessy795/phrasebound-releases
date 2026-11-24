@@ -1,0 +1,228 @@
+{
+  "manifest_version": 3,
+  "name": "Phrasebound — Learn Languages Phrase by Phrase",
+  "version": "1.1.0",
+  "description": "Learn languages from real videos: expressions in 12 languages, dual subtitles, hover lookup and offline translation on video sites.",
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "activeTab",
+    "offscreen",
+    "contextMenus",
+    "nativeMessaging",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "icons": {
+    "16": "icons/phrasebound-16.png",
+    "32": "icons/phrasebound-32.png",
+    "48": "icons/phrasebound-48.png",
+    "128": "icons/phrasebound-128.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/phrasebound-16.png",
+      "32": "icons/phrasebound-32.png"
+    },
+    "default_popup": "popup.html",
+    "default_title": "Phrasebound"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "sites/parse.js",
+        "sites/core.js",
+        "sites/youtube.page.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.bilibili.com/*"
+      ],
+      "js": [
+        "sites/parse.js",
+        "sites/core.js",
+        "sites/bilibili.page.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.netflix.com/*"
+      ],
+      "js": [
+        "sites/parse.js",
+        "sites/core.js",
+        "sites/netflix.page.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.primevideo.com/*",
+        "https://www.amazon.com/gp/video/*",
+        "https://www.amazon.co.uk/gp/video/*",
+        "https://www.amazon.co.jp/gp/video/*",
+        "https://www.amazon.de/gp/video/*"
+      ],
+      "js": [
+        "sites/parse.js",
+        "sites/core.js",
+        "sites/prime.page.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.disneyplus.com/*"
+      ],
+      "js": [
+        "sites/parse.js",
+        "sites/core.js",
+        "sites/disney.page.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://tv.apple.com/*"
+      ],
+      "js": [
+        "sites/parse.js",
+        "sites/core.js",
+        "sites/appletv.page.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.coursera.org/*",
+        "https://www.udemy.com/*",
+        "https://www.ted.com/*",
+        "https://courses.edx.org/*",
+        "https://www.khanacademy.org/*"
+      ],
+      "js": [
+        "sites/parse.js",
+        "sites/core.js",
+        "sites/generic.page.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.dw.com/en/live-tv/channel-english*",
+        "https://www.twitch.tv/*",
+        "https://live.bilibili.com/*",
+        "https://chzzk.naver.com/*",
+        "https://play.sooplive.co.kr/*",
+        "https://vod.sooplive.co.kr/*",
+        "https://kick.com/*",
+        "https://www.facebook.com/*",
+        "https://fb.watch/*",
+        "https://www.tiktok.com/*"
+      ],
+      "js": [
+        "sites/parse.js",
+        "sites/core.js",
+        "sites/live.page.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://www.bilibili.com/*",
+        "https://www.netflix.com/*",
+        "https://www.primevideo.com/*",
+        "https://www.amazon.com/gp/video/*",
+        "https://www.amazon.co.uk/gp/video/*",
+        "https://www.amazon.co.jp/gp/video/*",
+        "https://www.amazon.de/gp/video/*",
+        "https://www.disneyplus.com/*",
+        "https://tv.apple.com/*",
+        "https://www.coursera.org/*",
+        "https://www.udemy.com/*",
+        "https://www.ted.com/*",
+        "https://courses.edx.org/*",
+        "https://www.khanacademy.org/*",
+        "https://www.dw.com/en/live-tv/channel-english*",
+        "https://www.twitch.tv/*",
+        "https://live.bilibili.com/*",
+        "https://chzzk.naver.com/*",
+        "https://play.sooplive.co.kr/*",
+        "https://vod.sooplive.co.kr/*",
+        "https://kick.com/*",
+        "https://www.facebook.com/*",
+        "https://fb.watch/*",
+        "https://www.tiktok.com/*"
+      ],
+      "js": [
+        "sites/core.js",
+        "sites/parse.js",
+        "sites/youtube.js",
+        "sites/bilibili.js",
+        "sites/netflix.js",
+        "sites/prime.js",
+        "sites/disney.js",
+        "sites/appletv.js",
+        "sites/live.js",
+        "sites/generic.js",
+        "lang.js",
+        "idioms.js",
+        "literary.js",
+        "readings.js",
+        "storage.js",
+        "audio_clip.js",
+        "export.js",
+        "local-study.js",
+        "transfer.js",
+        "live_audio.js",
+        "content.js",
+        "scene_pair.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "lang.js",
+        "idioms.js",
+        "literary.js",
+        "readings.js",
+        "storage.js",
+        "select.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phrasebound — Bilingual Bookshelf &amp; File Reader</title>
+  <link rel="stylesheet" href="reader.css">
+</head>
+<body>
+  <div class="rd-shell">
+    <aside class="rd-sidebar" id="rdSidebar">
+      <div class="rd-brand">
+        <img class="rd-logo" src="icons/phrasebound-48.png" alt="">
+        <div>
+          <div class="rd-title">Study Reader</div>
+          <div class="rd-sub">EPUB · PDF · MD · SRT · TXT</div>
+        </div>
+      </div>
+
+      <label class="rd-drop" id="rdDropZone">
+        <input type="file" id="rdFileInput" accept=".epub,.pdf,.md,.markdown,.txt,.srt,.vtt,.ass,.ssa" hidden>
+        <span class="rd-drop-main">Open Local Book, PDF, or Subtitles</span>
+        <span class="rd-drop-hint">Drop DRM-free .epub, .pdf, .md, .srt, .vtt, .ass, or .txt</span>
+      </label>
+
+      <div class="rd-book-meta" id="rdBookMeta" hidden>
+        <div class="rd-book-title" id="rdBookTitle"></div>
+        <div class="rd-book-author" id="rdBookAuthor"></div>
+      </div>
+
+      <div class="rd-toc-hdr">Chapters &amp; Sections</div>
+      <nav class="rd-toc" id="rdToc" aria-label="Chapters"></nav>
+    </aside>
+
+    <main class="rd-main">
+      <header class="rd-toolbar">
+        <div class="rd-tb-left">
+          <button type="button" class="rd-btn" id="btnToggleToc" title="Toggle chapter sidebar">☰ Chapters</button>
+          <span class="rd-doc-status" id="rdStatus">Drop an .epub, .pdf, .md, .srt, or .txt file to begin reading with 12-language idiom noticing.</span>
+        </div>
+        <div class="rd-tb-right">
+          <label class="rd-inline-sel">
+            <span>L2</span>
+            <select id="rdSrcLang">
+              <option value="auto">Auto</option>
+              <option value="en">EN</option>
+              <option value="zh">ZH</option>
+              <option value="yue">YUE</option>
+              <option value="ja">JA</option>
+              <option value="ko">KO</option>
+              <option value="es">ES</option>
+              <option value="fr">FR</option>
+              <option value="de">DE</option>
+              <option value="pt">PT</option>
+              <option value="it">IT</option>
+              <option value="ru">RU</option>
+              <option value="tl">TL</option>
+            </select>
+          </label>
+          <label class="rd-inline-sel">
+            <span>→ L1</span>
+            <select id="rdTlLang">
+              <option value="en">English</option>
+              <option value="zh-Hant">繁體中文</option>
+              <option value="zh-Hans">简体中文</option>
+              <option value="yue">粵語</option>
+              <option value="ja">日本語</option>
+              <option value="ko">한국어</option>
+              <option value="es">Español</option>
+              <option value="fr">Français</option>
+              <option value="de">Deutsch</option>
+              <option value="pt">Português</option>
+              <option value="it">Italiano</option>
+              <option value="ru">Русский</option>
+              <option value="tl">Tagalog</option>
+            </select>
+          </label>
+          <button type="button" class="rd-btn active" id="btnReaderAid" aria-pressed="true" title="Show pronunciation and stress marks where available">Reading aids: On</button>
+          <button type="button" class="rd-btn" id="btnReaderPatterns" aria-pressed="false" hidden>Japanese patterns</button>
+          <button type="button" class="rd-btn active" id="btnPosAid" title="Toggle Noun (green), Verb (blue) &amp; Adjective (amber) POS highlights">POS: On</button>
+          <button type="button" class="rd-btn" id="btnVerticalMode" title="Toggle vertical RTL reading mode for Japanese / Chinese books">Vertical</button>
+          <button type="button" class="rd-btn" id="btnPdfPreview" aria-pressed="true" hidden>Original page</button>
+          <button type="button" class="rd-btn" id="btnPdfEdit" aria-pressed="false" hidden>Edit translation</button>
+          <button type="button" class="rd-btn rd-btn-primary" id="btnTranslateChapter">Translate Chapter</button>
+          <button type="button" class="rd-btn" id="btnPdfExport" hidden>Translate &amp; export PDF</button>
+          <button type="button" class="rd-btn" id="btnExportEpub" title="Export translated book as DRM-free .bilingual.epub">⬇ .epub</button>
+          <button type="button" class="rd-btn" id="btnExportMd" title="Export bilingual Markdown or SRT">Export Bilingual</button>
+        </div>
+      </header>
+
+      <div class="rd-stage-wrap">
+        <aside class="rd-pdf-original" id="rdPdfOriginal" aria-label="Original PDF page" hidden></aside>
+        <article class="rd-article" id="rdArticle">
+          <div class="rd-empty" id="rdEmpty">
+            <h2>Bilingual Study Reader</h2>
+            <p>Open any DRM-free EPUB book, PDF paper/article, Markdown note, or SRT/VTT/ASS subtitle transcript. Expressions across 12 languages are highlighted automatically; click any word or idiom for Yomitan-style dictionary lookup + Tatoeba examples, and translate chapters locally or with zero-setup Web AI.</p>
+          </div>
+        </article>
+
+        <aside class="rd-inspector" id="rdInspector" hidden>
+          <div class="rd-insp-head">
+            <h3 id="rdInspWord">Lookup</h3>
+            <div class="rd-insp-actions">
+              <button type="button" class="rd-btn rd-btn-sm" id="btnInspSpeak" title="Speak aloud">Speak</button>
+              <button type="button" class="rd-btn rd-btn-sm" id="btnInspClose" title="Close">✕</button>
+            </div>
+          </div>
+          <div class="rd-insp-body" id="rdInspBody"></div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <script src="lang.js"></script>
+  <script src="idioms.js"></script>
+  <script src="literary.js"></script>
+  <script src="readings.js"></script>
+  <script src="local-study.js"></script>
+  <script src="reader.js"></script>
+</body>
+</html>

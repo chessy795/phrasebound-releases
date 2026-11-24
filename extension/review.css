@@ -1,0 +1,41 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+  background: #13171f;
+  color: #edf0f7;
+}
+body { margin: 0; }
+main { max-width: 44rem; margin: auto; padding: clamp(1rem, 5vw, 3rem); }
+header { margin-bottom: 1.4rem; }
+h1, h2, p { margin: 0 0 .65rem; }
+h1 { letter-spacing: -.035em; }
+h2 { font-size: clamp(1.3rem, 4vw, 2rem); overflow-wrap: anywhere; }
+button, input { font: inherit; color: inherit; padding: .5rem .75rem; border: 1px solid #526076; border-radius: .5rem; background: #252e3d; }
+button { cursor: pointer; }
+button:disabled { opacity: .65; cursor: default; }
+button:hover:not(:disabled) { background: #344156; }
+:focus-visible { outline: 2px solid #ffb780; outline-offset: 3px; }
+kbd, small { color: #c2ccdd; }
+kbd { margin-left: .4em; font-size: .8em; }
+a { color: #93dccd; }
+.card { border: 1px solid #394557; border-radius: .85rem; padding: clamp(1rem, 4vw, 2rem); background: #1c2430; }
+.line { line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+#review-answer { border-top: 1px solid #526076; padding-top: 1rem; overflow-wrap: anywhere; }
+#review-ratings { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: .5rem; margin-top: 1.25rem; }
+#review-ratings small { display: block; margin-top: .25rem; }
+[data-grade="good"] { border-color: #6bc6b3; }
+#review-counts, #review-context, .credit, #pattern-count { color: #c2ccdd; }
+#review-message:not(:empty) { margin-top: .75rem; }
+#review-message:empty { margin: 0; }
+.tools { display: flex; align-items: baseline; gap: .85rem; flex-wrap: wrap; margin: .9rem 0; }
+summary { cursor: pointer; padding: .5rem 0; }
+form { display: flex; flex-wrap: wrap; gap: .7rem; align-items: end; padding: .75rem 0; }
+form label { display: grid; gap: .3rem; }
+form input { width: 5rem; }
+#patterns { border-top: 1px solid #394557; padding-top: .3rem; }
+#patterns label { display: block; margin: .5rem 0; }
+#pattern-query { box-sizing: border-box; width: 100%; margin-bottom: .65rem; }
+#pattern-results { list-style: none; margin: 0 0 .7rem; padding: 0; }
+#pattern-results li { display: flex; gap: .75rem; align-items: start; justify-content: space-between; border-bottom: 1px solid #394557; padding: .7rem 0; }
+#pattern-results button { flex: 0 0 auto; }
+.credit { font-size: .85rem; margin-top: .7rem; }

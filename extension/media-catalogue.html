@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Media catalogue · Phrasebound</title>
+  <link rel="stylesheet" href="media-catalogue.css">
+  <script src="lang.js" defer></script>
+  <script src="storage.js" defer></script>
+  <script src="media-catalogue.js" defer></script>
+</head>
+<body>
+  <header class="media-header">
+    <div class="media-shell media-header-inner">
+      <div class="media-brand"><img src="icons/phrasebound-32.png" alt="">Phrasebound</div>
+      <nav aria-label="Study tools">
+        <a href="reader.html">Study Reader</a>
+        <a href="player.html">Local Video</a>
+        <a href="review.html">Review</a>
+      </nav>
+    </div>
+  </header>
+  <main class="media-shell">
+    <div class="media-toolbar">
+      <h1>Media catalogue</h1>
+      <select id="media-language" aria-label="Study language"></select>
+      <div class="media-controls">
+        <button type="button" id="media-refresh">Check for new media</button>
+        <details class="media-menu">
+          <summary aria-label="Catalogue options">⋯</summary>
+          <label class="media-import">
+            Import catalogue JSON
+            <input type="file" id="media-import" accept=".json,application/json">
+          </label>
+        </details>
+      </div>
+    </div>
+    <div class="media-layout">
+      <aside class="media-filters" aria-label="Catalogue filters">
+        <div class="media-types" role="group" aria-label="Media type">
+          <button type="button" data-kind="all" aria-pressed="true">All media</button>
+          <button type="button" data-kind="video" aria-pressed="false">Videos</button>
+          <button type="button" data-kind="podcast" aria-pressed="false">Podcasts &amp; audio</button>
+        </div>
+        <div class="media-filter-fields">
+          <label for="media-publisher">Publisher</label>
+          <select id="media-publisher"><option value="">All publishers</option></select>
+          <label for="media-sort">Sort by</label>
+          <select id="media-sort">
+            <option value="recommended">Study matches</option>
+            <option value="recent">Newest first</option>
+            <option value="views">Most viewed</option>
+            <option value="short">Shortest first</option>
+          </select>
+        </div>
+      </aside>
+      <section class="media-library" aria-labelledby="media-title">
+        <div class="media-library-header">
+          <div>
+            <h2 id="media-title">Browse media</h2>
+            <p id="media-status" role="status">Opening your catalogue…</p>
+          </div>
+          <input id="media-search" type="search" aria-label="Search titles, words or idioms" placeholder="Search titles, words or idioms">
+        </div>
+        <p id="media-refresh-status" role="status" hidden></p>
+        <div id="media-results"></div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

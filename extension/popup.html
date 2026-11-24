@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phrasebound</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="pp-root">
+    <header class="pp-head">
+      <img class="pp-logo" src="icons/phrasebound-48.png" alt="">
+      <div class="pp-titles">
+        <div class="pp-name">Phrasebound <span class="pp-ver">v1.1</span></div>
+        <div class="pp-sub" id="compStatus">Offline dicts · Free Web AI ready</div>
+      </div>
+      <div class="pp-seg" role="group" aria-label="Interface Density">
+        <button type="button" class="pp-seg-btn active" id="btnModeClean" title="Calm progressive-disclosure bar">Clean</button>
+        <button type="button" class="pp-seg-btn" id="btnModePro" title="Full study studio with drills &amp; review">Pro</button>
+      </div>
+      <span class="pp-dot" id="compDot" title="Local companion status"></span>
+    </header>
+
+    <section class="pp-controls pp-controls-one">
+      <label class="pp-field">
+        <span class="pp-lbl">Translate to</span>
+        <select id="tlSelect">
+          <option value="en">English (en)</option>
+          <option value="zh-Hant">繁體中文 (zh-Hant)</option>
+          <option value="zh-Hans">简体中文 (zh-Hans)</option>
+          <option value="yue">粵語 Cantonese (yue)</option>
+          <option value="ja">日本語 (ja)</option>
+          <option value="ko">한국어 (ko)</option>
+          <option value="es">Español (es)</option>
+          <option value="fr">Français (fr)</option>
+          <option value="de">Deutsch (de)</option>
+          <option value="pt">Português (pt)</option>
+          <option value="it">Italiano (it)</option>
+          <option value="ru">Русский (ru)</option>
+          <option value="tl">Tagalog / Filipino (tl)</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="pp-grid" aria-label="Main actions">
+      <button type="button" class="pp-tile pp-tile-primary" id="btnArticle">
+        <span class="pp-tile-title">Translate this page</span>
+        <kbd id="shortcut-article">Alt+A</kbd>
+      </button>
+      <button type="button" class="pp-tile" id="btnOcr" title="Capture burned-in subtitle band from active video">
+        <span class="pp-tile-title">Read burned-in subtitles</span>
+        <kbd>Alt+O</kbd>
+      </button>
+    </section>
+
+    <section class="pp-pills" aria-label="Main switches">
+      <button type="button" class="pp-chip" id="btnAutoWeb" title="Automatically translate foreign-language webpages end-to-end without clicking">Auto Web</button>
+      <button type="button" class="pp-chip" id="btnReaderAid" aria-pressed="false" title="Show pronunciation, stress marks, and word-class colors where available">Reading aids</button>
+    </section>
+
+    <details class="pp-more" id="ppMore">
+      <summary>More tools</summary>
+      <section class="pp-controls pp-controls-one">
+        <label class="pp-field">
+        <span class="pp-lbl">Model</span>
+        <select id="modelSelect">
+          <option value="plamo-2b">PLaMo 3 2B (Default)</option>
+          <option value="index-2b">Index 2B</option>
+          <option value="hy-mt-1.8b">Hy-MT2 1.8B</option>
+          <option value="hy-mt2-7b">Hy-MT2 7B</option>
+          <option value="index-9b">Index 9B</option>
+          <option value="gemma-e2b">Gemma 3n E2B</option>
+          <option value="gemma-e4b">Gemma 3n E4B</option>
+          <option value="plamo-0.8b">PLaMo 3 0.8B (Fast)</option>
+        </select>
+      </label>
+      </section>
+      <section class="pp-grid" aria-label="More page actions">
+        <button type="button" class="pp-tile" id="btnFullPage">
+        <span class="pp-tile-title">Whole page, every block</span>
+        <kbd id="shortcut-full">Alt+P</kbd>
+      </button>
+        <button type="button" class="pp-tile" id="btnRulePicker" title="Visually pick page blocks to keep original or force translate">
+        <span class="pp-tile-title">Pick what to translate</span>
+        <kbd id="shortcut-picker">Alt+S</kbd>
+      </button>
+      </section>
+      <section class="pp-pills" aria-label="More switches">
+        <button type="button" class="pp-chip" id="btnIPlusOne" title="Selective i+1 idiom &amp; unknown glosses">New word hints</button>
+        <button type="button" class="pp-chip" id="btnL1Weave" title="Weave saved L2 expressions into L1 pages">Show saved phrases</button>
+        <button type="button" class="pp-chip" id="btnBlurWeb" title="Blur translated blocks until hovered">Hide translations until hover</button>
+        <button type="button" class="pp-chip" id="btnBorderless" title="Hide paragraph borders for clean book typography">Borderless</button>
+        <button type="button" class="pp-chip" id="btnRegionOcr" title="Drag a box over any image/manga/slide for Local OCR (Alt+Shift+O)">Read text in an image</button>
+      </section>
+      <section class="pp-studios" aria-label="Standalone Studios">
+      <button type="button" class="pp-studio pp-studio-teal" id="btnMediaCatalogue">
+        <span class="pp-studio-hdr">Media catalogue <span>↗</span></span>
+        <span class="pp-studio-sub">Videos and podcasts for your study words</span>
+      </button>
+      <button type="button" class="pp-studio" id="btnReview">
+        <span class="pp-studio-hdr">Review cards <span>↗</span></span>
+        <span class="pp-studio-sub">Spaced repetition · Japanese patterns</span>
+      </button>
+      <button type="button" class="pp-studio" id="btnReader">
+        <span class="pp-studio-hdr">Study Reader <span>↗</span></span>
+        <span class="pp-studio-sub">Open a book, document, or subtitle file</span>
+      </button>
+      <button type="button" class="pp-studio pp-studio-teal" id="btnLocalPlayer">
+        <span class="pp-studio-hdr">Local Video <span>↗</span></span>
+        <span class="pp-studio-sub">MP4 / MKV + Dual SRT / ASS</span>
+      </button>
+    </section>
+    </details>
+
+    <footer class="pp-foot">
+      <span class="pp-mini-stat"><b id="statSaved">0</b> saved</span>
+      <span class="pp-sep">·</span>
+      <span class="pp-mini-stat"><b id="statKnown">0</b> Known</span>
+      <span class="pp-mini-stat" hidden><b id="statXp">0</b> XP</span>
+      <span class="pp-sep">·</span>
+      <span class="pp-hint" hidden><span id="compareHint"><kbd id="shortcut-compare">Alt+D</kbd></span></span>
+      <a class="pp-hint" href="credits.html" target="_blank">Credits</a>
+      <span class="pp-sep">·</span>
+      <button type="button" class="pp-link-btn" id="btnOptions" title="Open Phrasebound Options">Options</button>
+    </footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

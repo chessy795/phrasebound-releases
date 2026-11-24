@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phrasebound — Local Video &amp; Subtitle Player</title>
+  <link rel="stylesheet" href="player.css">
+</head>
+<body>
+  <div class="ss-app" id="appRoot">
+    <header class="ss-topbar">
+      <div class="ss-brand">
+        <img class="ss-brand-badge" src="icons/phrasebound-48.png" alt="">
+        <div class="ss-brand-titles">
+          <h1 class="ss-title">Phrasebound Local Player</h1>
+          <span class="ss-subtitle" id="mediaTitleLabel">Drop or choose a local video (.mp4 / .webm / .mkv) and subtitles (.srt / .vtt / .ass)</span>
+        </div>
+      </div>
+
+      <div class="ss-toolbar-controls">
+        <label class="ss-field" for="sourceLangSelect">
+          <span class="ss-field-label">Primary (L2)</span>
+          <select id="sourceLangSelect" class="ss-select">
+            <option value="en">English (en)</option>
+            <option value="ja" selected>Japanese (ja)</option>
+            <option value="zh">Mandarin (zh)</option>
+            <option value="yue">Cantonese (yue)</option>
+            <option value="ko">Korean (ko)</option>
+            <option value="es">Spanish (es)</option>
+            <option value="fr">French (fr)</option>
+            <option value="de">German (de)</option>
+            <option value="pt">Portuguese (pt)</option>
+            <option value="it">Italian (it)</option>
+            <option value="ru">Russian (ru)</option>
+            <option value="tl">Tagalog (tl)</option>
+          </select>
+        </label>
+
+        <label class="ss-field" for="targetLangSelect">
+          <span class="ss-field-label">Target (L1)</span>
+          <select id="targetLangSelect" class="ss-select">
+            <option value="en" selected>English (en)</option>
+            <option value="zh">Mandarin (zh)</option>
+            <option value="yue">Cantonese (yue)</option>
+            <option value="ja">Japanese (ja)</option>
+            <option value="ko">Korean (ko)</option>
+            <option value="es">Spanish (es)</option>
+            <option value="fr">French (fr)</option>
+            <option value="de">German (de)</option>
+            <option value="pt">Portuguese (pt)</option>
+            <option value="it">Italian (it)</option>
+            <option value="ru">Russian (ru)</option>
+            <option value="tl">Tagalog (tl)</option>
+          </select>
+        </label>
+
+        <label class="ss-toggle-pill" for="autoTranslateToggle" title="Auto-translate visible cues via background companion when secondary subtitles are missing">
+          <input type="checkbox" id="autoTranslateToggle">
+          <span>Auto-Translate Visible</span>
+        </label>
+
+        <button type="button" class="ss-btn is-active" id="rubyAidBtn" title="Toggle Furigana, Pitch Accent, Pinyin &amp; Jyutping reading aids">
+          Ruby: On
+        </button>
+
+        <button type="button" class="ss-btn is-active" id="posAidBtn" title="Toggle Noun, Verb &amp; Adjective part-of-speech highlights">
+          POS: On
+        </button>
+
+        <button type="button" class="ss-btn ss-btn-primary" id="translateTrackBtn" disabled>
+          Translate Track Locally
+        </button>
+
+        <button type="button" class="ss-btn" id="exportSrtBtn" disabled>
+          Export Bilingual .SRT
+        </button>
+      </div>
+    </header>
+
+    <section class="ss-filebar" id="dropZone" aria-label="File inputs and drag-and-drop zone">
+      <div class="ss-picker-card">
+        <div class="ss-picker-meta">
+          <span class="ss-picker-title">1. Video File</span>
+          <span class="ss-picker-status" id="videoFileStatus">No video selected (.mp4, .webm, .mkv)</span>
+        </div>
+        <label class="ss-btn ss-btn-compact" for="videoFileInput">Choose Video</label>
+        <input type="file" id="videoFileInput" accept=".mp4,.webm,.mkv,video/*" hidden>
+      </div>
+
+      <div class="ss-picker-card">
+        <div class="ss-picker-meta">
+          <span class="ss-picker-title">2. Primary Subtitle (L2)</span>
+          <span class="ss-picker-status" id="primarySubStatus">No primary track (.srt, .vtt, .ass, .ssa)</span>
+        </div>
+        <label class="ss-btn ss-btn-compact" for="primarySubInput">Choose Primary</label>
+        <input type="file" id="primarySubInput" accept=".srt,.vtt,.ass,.ssa" hidden>
+      </div>
+
+      <div class="ss-picker-card">
+        <div class="ss-picker-meta">
+          <span class="ss-picker-title">3. Optional Secondary (L1)</span>
+          <span class="ss-picker-status" id="secondarySubStatus">Optional translation (.srt, .vtt, .ass, .ssa)</span>
+        </div>
+        <label class="ss-btn ss-btn-compact" for="secondarySubInput">Choose Secondary</label>
+        <input type="file" id="secondarySubInput" accept=".srt,.vtt,.ass,.ssa" hidden>
+      </div>
+
+      <div class="ss-drop-hint" id="dropHint">
+        Drag &amp; drop video + subtitle files anywhere here
+      </div>
+    </section>
+
+    <main class="ss-workspace">
+      <section class="ss-stage-column">
+        <div class="ss-video-viewport" id="videoViewport">
+          <video id="videoEl" class="ss-video" controls playsinline preload="metadata"></video>
+
+          <div class="ss-empty-stage" id="emptyStageOverlay">
+            <div class="ss-empty-title">Open a Local Video to Start Studying</div>
+            <div class="ss-empty-desc">Supports .mp4, .webm, and .mkv alongside .srt, .vtt, or .ass/.ssa tracks</div>
+          </div>
+
+          <div class="ss-sub-overlay" id="subtitleOverlay" aria-live="polite">
+            <div class="ss-sub-primary" id="overlayPrimary"></div>
+            <div class="ss-sub-secondary" id="overlaySecondary"></div>
+          </div>
+        </div>
+
+        <div class="ss-transport-bar">
+          <div class="ss-transport-group">
+            <button type="button" class="ss-btn ss-kbd-btn" id="prevCueBtn" title="Previous cue (Shortcut: A)">
+              <kbd>A</kbd>
+              <span>Prev Cue</span>
+            </button>
+            <button type="button" class="ss-btn ss-kbd-btn" id="replayCueBtn" title="Replay current cue (Shortcut: S)">
+              <kbd>S</kbd>
+              <span>Replay Cue</span>
+            </button>
+            <button type="button" class="ss-btn ss-kbd-btn" id="nextCueBtn" title="Next cue (Shortcut: D)">
+              <kbd>D</kbd>
+              <span>Next Cue</span>
+            </button>
+            <button type="button" class="ss-btn ss-kbd-btn" id="playPauseBtn" title="Play / Pause (Shortcut: Space)">
+              <kbd>Space</kbd>
+              <span id="playPauseLabel">Play</span>
+            </button>
+          </div>
+
+          <div class="ss-transport-group">
+            <span class="ss-status-Banner" id="statusBanner">Ready</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="ss-sidebar">
+        <div class="ss-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected="true" class="ss-tab is-active" id="tabTranscriptBtn" data-tab="transcript">
+            <span>Transcript</span>
+            <span class="ss-tab-count" id="transcriptCountBadge">0</span>
+          </button>
+          <button type="button" role="tab" aria-selected="false" class="ss-tab" id="tabIdiomsBtn" data-tab="idioms">
+            <span>Idioms</span>
+            <span class="ss-tab-count" id="idiomsCountBadge">0</span>
+          </button>
+        </div>
+
+        <div class="ss-tab-panel" id="panelTranscript" role="tabpanel">
+          <div class="ss-list-empty" id="transcriptEmptyMsg">
+            Load a primary .srt, .vtt, or .ass subtitle file to view the synced interactive transcript.
+          </div>
+          <div class="ss-transcript-list" id="transcriptList"></div>
+        </div>
+
+        <div class="ss-tab-panel is-hidden" id="panelIdioms" role="tabpanel">
+          <div class="ss-list-empty" id="idiomsEmptyMsg">
+            Matched formulaic expressions appear here when SS_IDIOMS &amp; SS_LANG are loaded and expressions are detected in the primary track.
+          </div>
+          <div class="ss-idioms-list" id="idiomsList"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="lang.js"></script>
+  <script src="idioms.js"></script>
+  <script src="literary.js"></script>
+  <script src="readings.js"></script>
+  <script src="local-study.js"></script>
+  <script src="player.js"></script>
+</body>
+</html>

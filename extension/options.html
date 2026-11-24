@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phrasebound Options</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="opt-shell">
+    <aside class="opt-side">
+      <div class="opt-brand">
+        <img class="opt-logo" src="icons/phrasebound-48.png" alt="">
+        <div>
+          <div class="opt-title">Phrasebound</div>
+          <div class="opt-ver">Studio Settings</div>
+        </div>
+      </div>
+
+      <nav class="opt-nav" aria-label="Settings sections">
+        <button type="button" class="opt-tab active" data-tab="services">Translation</button>
+        <button type="button" class="opt-tab" data-tab="subtitles">Subtitles &amp; Live Streams</button>
+        <button type="button" class="opt-tab" data-tab="floating">Floating Ball &amp; Rules</button>
+        <button type="button" class="opt-tab" data-tab="dictionaries">Dictionaries</button>
+        <button type="button" class="opt-tab" data-tab="companion">Local GPU &amp; Studios</button>
+      </nav>
+
+      <div class="opt-side-foot">
+        <span class="opt-save-pill" id="saveStatus">Saved automatically</span>
+      </div>
+    </aside>
+
+    <main class="opt-main">
+      <!-- Tab 1: Translation Scenarios & Services -->
+      <section class="opt-sec active" id="tab-services">
+        <header class="opt-sec-hdr">
+          <div>
+            <h1>Translation</h1>
+            <p>Choose how Phrasebound translates articles and feeds.</p>
+          </div>
+          <label class="opt-inline-field">
+            <span>Target language</span>
+            <select id="optTl">
+              <option value="en">English (en)</option>
+              <option value="zh-Hant">繁體中文 (zh-Hant)</option>
+              <option value="zh-Hans">简体中文 (zh-Hans)</option>
+              <option value="yue">粵語 Cantonese (yue)</option>
+              <option value="ja">日本語 (ja)</option>
+              <option value="ko">한국어 (ko)</option>
+              <option value="es">Español (es)</option>
+              <option value="fr">Français (fr)</option>
+              <option value="de">Deutsch (de)</option>
+              <option value="pt">Português (pt)</option>
+              <option value="it">Italiano (it)</option>
+              <option value="ru">Русский (ru)</option>
+              <option value="tl">Tagalog (tl)</option>
+            </select>
+          </label>
+        </header>
+
+        <div class="opt-card opt-routing">
+          <h2>Webpages and feeds</h2>
+          <label class="opt-toggle">
+            <input type="checkbox" id="chkAutoWebReadings">
+            <div>
+              <strong>Automatically add reading aids to original text</strong>
+              <span>Uses your reading aid setting for Japanese, Mandarin, Cantonese, Korean, Russian and Tagalog. Works while translation is off.</span>
+            </div>
+          </label>
+          <div class="opt-grid-2">
+            <label class="opt-field">
+              <span>Page view</span>
+              <select id="webDisplayMode">
+                <option value="bilingual">Show original and translation</option>
+                <option value="tr_only">Automatically replace original text</option>
+              </select>
+            </label>
+            <label class="opt-field">
+              <span>Translation appearance</span>
+              <select id="webTranslationStyle">
+                <option value="native">Match original text</option>
+                <option value="panel">Translation panel</option>
+              </select>
+            </label>
+          </div>
+          <div class="opt-grid-2">
+            <label class="opt-field">
+              <span>Translation engine</span>
+              <select data-scene="webpage"></select>
+            </label>
+            <label class="opt-field">
+              <span>Preferred web service</span>
+              <select id="webMtProvider">
+                <option value="google">Google Translate</option>
+                <option value="microsoft">Microsoft Translator (Bing)</option>
+              </select>
+            </label>
+          </div>
+          <label class="opt-toggle">
+            <input type="checkbox" id="cloudFallback">
+            <div>
+              <strong>Use a cloud service when local translation is unavailable</strong>
+              <span>Off by default. When off, pages are translated by the local model or Chrome's on-device translator only, and no page text is sent to Google or Microsoft.</span>
+            </div>
+          </label>
+          <label class="opt-toggle">
+            <input type="checkbox" id="webMtFallback">
+            <div>
+              <strong>Try the other web service if the preferred one fails</strong>
+              <span>Applies when translation takes the web route.</span>
+            </div>
+          </label>
+          <p id="webMtRoute"></p>
+          <div>
+            <button type="button" class="opt-btn opt-btn-primary" id="testWebMt">Test web translation</button>
+            <div class="opt-status-line" id="webMtStatus" role="status"></div>
+          </div>
+          <details id="microsoftSetup">
+            <summary>Microsoft Translator setup</summary>
+            <p>Add an Azure Translator resource key to use Microsoft as your preferred service or fallback.</p>
+            <div class="opt-grid-2">
+              <label class="opt-field">
+                <span>Azure Translator key</span>
+                <input type="password" id="microsoftKey" autocomplete="off">
+              </label>
+              <label class="opt-field">
+                <span>Azure region (blank for a global resource)</span>
+                <input type="text" id="microsoftRegion" autocomplete="off" placeholder="eastus">
+              </label>
+            </div>
+            <button type="button" class="opt-btn" id="testMicrosoft">Test Microsoft directly</button>
+          </details>
+        </div>
+
+        <details class="opt-card opt-settings-detail">
+          <summary>Webpage translation glossary</summary>
+          <label class="opt-field">
+            <span>Enter one source term and preferred translation per line. The local Companion uses these on webpages.</span>
+            <textarea id="translationGlossary" rows="5" placeholder="river bank = 河岸"></textarea>
+          </label>
+          <button type="button" class="opt-btn" id="saveGlossary">Save glossary</button>
+          <div class="opt-status-line" id="translationGlossaryStatus" role="status"></div>
+        </details>
+
+        <details class="opt-card opt-settings-detail">
+          <summary>Engines for other features</summary>
+          <div class="opt-matrix" id="scenarioMatrix">
+            <label class="opt-row">
+              <div>
+                <strong>Video &amp; Live Stream Subtitles</strong>
+                <span>YouTube, Twitch, Bilibili, CHZZK, Netflix, Local Player</span>
+              </div>
+              <select data-scene="subtitle"></select>
+            </label>
+            <label class="opt-row">
+              <div>
+                <strong>Selection &amp; Dictionary Popup</strong>
+                <span>Highlight phrases and open the dictionary popup</span>
+              </div>
+              <select data-scene="selection"></select>
+            </label>
+            <label class="opt-row">
+              <div>
+                <strong>Cursor Hover Paragraph</strong>
+                <span>Hold Ctrl over any paragraph for instant bilingual inline</span>
+              </div>
+              <select data-scene="hover"></select>
+            </label>
+            <label class="opt-row">
+              <div>
+                <strong>Input Box Compose</strong>
+                <span>Type triple-space, //tr , or use the input translation shortcut</span>
+              </div>
+              <select data-scene="input"></select>
+            </label>
+            <label class="opt-row">
+              <div>
+                <strong>Image / Region / Manga OCR</strong>
+                <span>Right-click image or drag crop box (Alt+Shift+O)</span>
+              </div>
+              <select data-scene="ocr"></select>
+            </label>
+          </div>
+        </details>
+
+        <div class="opt-card">
+          <div class="opt-card-head">
+            <div>
+              <h2>Service Health &amp; Latency Benchmark</h2>
+              <p>Verify connection status and real round-trip speed across engines on your machine.</p>
+            </div>
+            <button type="button" class="opt-btn opt-btn-primary" id="btnSpeedTest">Run Batch Speed Test</button>
+          </div>
+          <div class="opt-bench-list" id="benchList"></div>
+        </div>
+
+        <div class="opt-card">
+          <div class="opt-card-head">
+            <div>
+              <h2>Custom OpenAI-Compatible Service</h2>
+              <p>Connect any OpenAI, DeepSeek, Gemini OpenAI-compat, OpenRouter, or local Ollama endpoint. Credentials stay strictly in your browser storage.</p>
+            </div>
+            <button type="button" class="opt-btn" id="btnTestCustom">Verify Connection</button>
+          </div>
+          <div class="opt-grid-2">
+            <label class="opt-field">
+              <span>API Base URL</span>
+              <input type="url" id="customBaseUrl" placeholder="https://api.openai.com/v1 or http://127.0.0.1:11434/v1">
+            </label>
+            <label class="opt-field">
+              <span>Model Name</span>
+              <input type="text" id="customModel" placeholder="gpt-4o-mini / deepseek-chat / qwen2.5:7b">
+            </label>
+            <label class="opt-field opt-span-2">
+              <span>API Key (leave blank for local Ollama / LM Studio)</span>
+              <input type="password" id="customApiKey" placeholder="sk-...">
+            </label>
+          </div>
+          <div class="opt-status-line" id="customStatus"></div>
+        </div>
+      </section>
+
+      <!-- Tab 2: Subtitles & Live Streams -->
+      <section class="opt-sec" id="tab-subtitles">
+        <header class="opt-sec-hdr">
+          <div>
+            <h1>Subtitles &amp; Live Streams</h1>
+            <p>Tune subtitle sources, dialogue cleanup, auto-detection on unsupported sites, and bilingual overlay typography.</p>
+          </div>
+        </header>
+
+        <div class="opt-card">
+          <h2>Source Priority &amp; Speech Cleanup</h2>
+          <div class="opt-checks">
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkPreferHuman">
+              <div>
+                <strong>Prefer human subtitles in target language</strong>
+                <span>Use official human target tracks before machine or AI translation on YouTube, Udemy, and Disney+.</span>
+              </div>
+            </label>
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkPreferCustomYtMt">
+              <div>
+                <strong>Prioritize Phrasebound AI over YouTube built-in MT</strong>
+                <span>Translate subtitles using your selected AI engine first instead of built-in machine translation.</span>
+              </div>
+            </label>
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkCleanStageNoise">
+              <div>
+                <strong>Filter environmental sound annotations</strong>
+                <span>Strip non-speech tags like (music), [applause], (sighs), (呼嚕聲) to keep dialogue clean.</span>
+              </div>
+            </label>
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkMergeClauses">
+              <div>
+                <strong>Merge split ASR clauses into full sentences</strong>
+                <span>Automatically stitch fragmented YouTube auto-captions before translating.</span>
+              </div>
+            </label>
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkAutoDetectVideo">
+              <div>
+                <strong>Auto-adapt HTML5 video on unconfigured sites</strong>
+                <span>Detect native &lt;video&gt; streams and Live CC across general educational and streaming pages.</span>
+              </div>
+            </label>
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkAutoCalibrateLevel">
+              <div>
+                <strong>Auto-calibrate vocabulary level from reading &amp; viewing behavior</strong>
+                <span>Continuously refines your per-language frequency frontier from lookups, scrub-backs, and smooth comprehension without placement tests.</span>
+              </div>
+            </label>
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkIncidentalFsrs">
+              <div>
+                <strong>Incidental FSRS-6 spaced recall in videos &amp; webpages</strong>
+                <span>Gently prompts due saved words and idioms inline as you watch or read so retention compounds naturally without flashcard drills.</span>
+              </div>
+            </label>
+            <label class="opt-toggle"><input type="checkbox" id="chkWebRareWords"><div><strong>Underline rare words on webpages</strong><span>Hover over an underlined word for its definition.</span></div></label>
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkWebReaderAid">
+              <div>
+                <strong>Offline Furigana, Pitch Accent, Pinyin &amp; Jyutping reader aids</strong>
+                <span>Render phonetic guides above Japanese, Mandarin, Cantonese &amp; Korean words across YouTube, Webpages, Study Reader &amp; Local Player without needing the Python companion.</span>
+              </div>
+            </label>
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkPosColors">
+              <div>
+                <strong>Highlight Nouns, Verbs &amp; Adjectives (JA / ZH / YUE)</strong>
+                <span>Subtle part-of-speech tinting: green nouns, blue verbs, amber adjectives.</span>
+              </div>
+            </label>
+            <label class="opt-field">
+              <span>Preferred CJK Reading Aid Mode</span>
+              <select id="optReadingAid">
+                <option value="romaji">Ruby: Auto (Furigana / Pinyin / Jyutping / RR)</option>
+                <option value="hira">かな Furigana + Pitch Accent (Japanese)</option>
+                <option value="romaji_latin">Romaji (Modified Hepburn)</option>
+                <option value="pinyin">Pīnyīn Only (Mandarin)</option>
+                <option value="zhuyin">Zhuyin Only (注音 Bopomofo)</option>
+                <option value="jyutping">Jyutping Only (粵拼 Cantonese)</option>
+                <option value="off">Off</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="opt-card">
+          <h2>Bilingual Subtitle Style &amp; Live Preview</h2>
+          <div class="opt-sub-preview" id="subPreviewStage">
+            <div class="opt-sub-box" id="subPreviewBox">
+              <div class="opt-sub-orig" id="subPrevOrig">Night gathers, and now my watch begins.</div>
+              <div class="opt-sub-tr" id="subPrevTr">長夜將至，我從今開始守望。</div>
+            </div>
+          </div>
+
+          <div class="opt-grid-2" style="margin-top: 14px;">
+            <label class="opt-field">
+              <span>Original text size: <b id="lblOrigSize">100%</b></span>
+              <input type="range" id="subOrigSize" min="16" max="38" step="1">
+            </label>
+            <label class="opt-field">
+              <span>Original color</span>
+              <input type="color" id="subOrigColor" value="#f8fafc">
+            </label>
+            <label class="opt-field">
+              <span>Translation size: <b id="lblTrSize">100%</b></span>
+              <input type="range" id="subTrSize" min="13" max="30" step="1">
+            </label>
+            <label class="opt-field">
+              <span>Translation color</span>
+              <input type="color" id="subTrColor" value="#dbe4f3">
+            </label>
+            <label class="opt-field">
+              <span>Background opacity: <b id="lblBgOpacity">84%</b></span>
+              <input type="range" id="subBgOpacity" min="0" max="95" step="5">
+            </label>
+            <label class="opt-toggle" style="align-self: end;">
+              <input type="checkbox" id="chkTransAboveOrig">
+              <div>
+                <strong>Show translation above original</strong>
+                <span>Place target-language line on top of original text.</span>
+              </div>
+            </label>
+          </div>
+          <div style="margin-top: 10px;">
+            <button type="button" class="opt-btn" id="btnResetSubStyle">Reset Default Style</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 3: Floating Ball & Site Rules -->
+      <section class="opt-sec" id="tab-floating">
+        <header class="opt-sec-hdr">
+          <div>
+            <h1>Floating Ball &amp; Site Rules</h1>
+            <p>Customize the on-page quick trigger, hover expansion behavior, input shortcuts, and domain exclusion lists.</p>
+          </div>
+        </header>
+
+        <div class="opt-card">
+          <h2>Floating Ball Appearance &amp; Behavior</h2>
+          <div class="opt-checks" style="margin-bottom: 12px;">
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkShowFab">
+              <div>
+                <strong>Show floating translation ball on webpages</strong>
+                <span>Quick one-click toggle docked to the viewport edge.</span>
+              </div>
+            </label>
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkFabCompact">
+              <div>
+                <strong>Compact mini ball (30px)</strong>
+                <span>Smaller footprint to avoid covering content on narrow screens.</span>
+              </div>
+            </label>
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkTripleSpace">
+              <div>
+                <strong>Input box triple-space trigger</strong>
+                <span>Press Space 3 times (or //tr ) after typing in an input field to preview &amp; Tab-replace with translation.</span>
+              </div>
+            </label>
+          </div>
+
+          <div class="opt-grid-2">
+            <label class="opt-field">
+              <span>Click action</span>
+              <select id="fabClickMode">
+                <option value="article">Translate Article (toggle original)</option>
+                <option value="full">Translate Full Page (toggle original)</option>
+                <option value="reader">Open in Study Reader</option>
+              </select>
+            </label>
+            <label class="opt-field">
+              <span>Viewport dock side</span>
+              <select id="fabSide">
+                <option value="right">Right edge</option>
+                <option value="left">Left edge</option>
+              </select>
+            </label>
+            <label class="opt-field">
+              <span>Idle opacity: <b id="lblFabOpacity">82%</b></span>
+              <input type="range" id="fabOpacity" min="20" max="100" step="5">
+            </label>
+            <label class="opt-field">
+              <span>Floating menu theme</span>
+              <select id="fabTheme">
+                <option value="system">Match system</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
+            <label class="opt-field">
+              <span>Menu hover delay: <b id="lblFabDelay">140ms</b></span>
+              <input type="range" id="fabHoverDelay" min="80" max="900" step="20">
+            </label>
+          </div>
+        </div>
+
+        <div class="opt-card">
+          <h2>Webpage Keyboard Shortcuts</h2>
+          <div class="opt-grid-2" id="webShortcutFields"></div>
+        </div>
+
+        <div class="opt-card">
+          <h2>Smart Zero-Click Auto-Translation &amp; Site Rules</h2>
+          <div class="opt-checks" style="margin-bottom: 12px;">
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkAutoTranslateForeign">
+              <div>
+                <strong>Auto-translate foreign-language webpages end-to-end (off by default)</strong>
+                <span>Automatically detect foreign pages (e.g. English, Japanese, Korean) and translate the entire page into your target language with zero clicks — while skipping pages already in your language, web apps, and code editors.</span>
+              </div>
+            </label>
+          </div>
+          <div class="opt-grid-2" style="margin-bottom: 12px;">
+            <label class="opt-field">
+              <span>Auto-translate scope</span>
+              <select id="autoTranslateScope">
+                <option value="full">Entire Page End-to-End (Smart skip for code &amp; web apps)</option>
+                <option value="article">Main Article Prose Only</option>
+                <option value="smart_i1">Smart Learner Mode (Translate dense/idiomatic blocks, keep easy prose clean)</option>
+              </select>
+            </label>
+            <label class="opt-field">
+              <span>Skip auto-translating these languages</span>
+              <input type="text" id="skipAutoTranslateLangs" placeholder="e.g. ja, es (leave blank to translate all foreign languages)">
+            </label>
+          </div>
+          <label class="opt-field">
+            <span>Hide floating ball on these domains (one domain per line)</span>
+            <textarea id="fabHideDomains" rows="3" placeholder="mail.google.com&#10;docs.google.com"></textarea>
+          </label>
+          <label class="opt-field" style="margin-top: 10px;">
+            <span>Never auto-translate these domains (one domain per line)</span>
+            <textarea id="neverTranslateHosts" rows="3" placeholder="github.com&#10;news.ycombinator.com"></textarea>
+          </label>
+          <div style="margin-top: 12px;">
+            <strong style="display: block; font-size: 12.5px; margin-bottom: 6px;">Always-Translate Sites</strong>
+            <div class="opt-tag-list" id="alwaysHostsList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 4: Local GPU & Studios -->
+      <section class="opt-sec" id="tab-companion">
+        <header class="opt-sec-hdr">
+          <div>
+            <h1>Local GPU &amp; Built-in Studios</h1>
+            <p>Configure your local Vulkan GPU companion server or jump directly to Phrasebound standalone tools.</p>
+          </div>
+        </header>
+
+        <div class="opt-card">
+          <h2>Local Companion Server (:8787)</h2>
+          <div class="opt-grid-2">
+            <label class="opt-field">
+              <span>Companion URL</span>
+              <input type="url" id="companionUrlInput" placeholder="http://127.0.0.1:8787">
+            </label>
+            <label class="opt-field">
+              <span>Default Local MT Model</span>
+              <select id="optMtModel">
+                <option value="plamo-2b">PLaMo 3 2B (Default)</option>
+                <option value="index-2b">Index 2B</option>
+                <option value="hy-mt-1.8b">Hy-MT2 1.8B</option>
+                <option value="hy-mt2-7b">Hy-MT2 7B</option>
+                <option value="index-9b">Index 9B</option>
+                <option value="plamo-8b">PLaMo 3 8B</option>
+                <option value="gemma-e2b">Gemma 3n E2B</option>
+                <option value="gemma-e4b">Gemma 3n E4B</option>
+                <option value="plamo-0.8b">PLaMo 3 0.8B (Fast)</option>
+              </select>
+            </label>
+          </div>
+          <div class="opt-checks" style="margin-top: 14px;">
+            <label class="opt-toggle">
+              <input type="checkbox" id="chkAutoStartCompanion">
+              <div>
+                <strong>Auto-start Local AI Companion when needed (Native Messaging)</strong>
+                <span>Silently wakes companion/server.py in the background on first GPU request after running companion/install_autostart.bat once.</span>
+              </div>
+            </label>
+          </div>
+          <div class="opt-studio-row" style="margin-top: 14px;">
+            <button type="button" class="opt-btn opt-btn-primary" id="btnWakeCompanion">Wake Companion Now</button>
+            <button type="button" class="opt-btn" id="btnOpenReader">Open Study Reader (PDF / EPUB / SRT)</button>
+            <button type="button" class="opt-btn" id="btnOpenPlayer">Open Local Video Studio</button>
+          </div>
+          <div class="opt-status-line" id="companionWakeStatus"></div>
+          <div class="opt-status-line" id="extIdDisplay"></div>
+          <div class="opt-studio-row">
+            <button type="button" class="opt-btn" id="exportPhraseEvidence" aria-describedby="phraseEvidenceHelp">Export personal study evidence</button>
+          </div>
+          <p id="phraseEvidenceHelp">Download watched expression lines, your sense labels and saved webpage excerpts for private local review.</p>
+          <div class="opt-status-line" id="phraseEvidenceStatus" role="status"></div>
+        </div>
+      </section>
+      <section class="opt-sec" id="tab-dictionaries">
+        <header class="opt-sec-hdr">
+          <div><h1>Dictionaries</h1><p>Add your Yomitan vocabulary dictionaries to Phrasebound lookups.</p></div>
+        </header>
+        <div class="opt-card">
+          <form id="dictionaryImport">
+            <label for="dictionaryFile">Yomitan dictionary ZIP</label>
+            <input id="dictionaryFile" type="file" accept=".zip,application/zip" required>
+            <label for="dictionaryLanguage">Headword language</label>
+            <select id="dictionaryLanguage">
+              <option value="">From the archive</option>
+              <option value="ja">Japanese</option><option value="ko">Korean</option>
+              <option value="zh">Mandarin</option><option value="yue">Cantonese</option>
+              <option value="en">English</option><option value="es">Spanish</option>
+              <option value="fr">French</option><option value="de">German</option>
+              <option value="pt">Portuguese</option><option value="it">Italian</option>
+              <option value="ru">Russian</option><option value="tl">Tagalog</option>
+            </select>
+            <button class="opt-btn opt-btn-primary" type="submit">Import dictionary</button>
+          </form>
+          <p>Headwords, readings, tags, and definition text stay in this browser. Choose a language if the ZIP does not declare one.</p>
+          <div id="dictionaryStatus" class="opt-status-line" role="status"></div>
+          <ul id="dictionaryList" aria-label="Imported dictionaries"></ul>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="options.js"></script><script src="evidence_export.js"></script>
+  <script src="user-dictionaries.js"></script><script src="dictionary-options.js"></script>
+</body>
+</html>
