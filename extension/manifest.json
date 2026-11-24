@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Phrasebound — Learn Languages Phrase by Phrase",
-  "version": "1.1.2",
+  "name": "Phrasebound: Idioms & Dual Subtitles for Videos",
+  "version": "1.1.3",
   "description": "Learn languages from real videos: expressions in 12 languages, dual subtitles, hover lookup and offline translation on video sites.",
   "permissions": [
     "storage",
