@@ -1,6 +1,6 @@
 {
 "version": "1.1.0",
-"files_base": "https://raw.githubusercontent.com/chessy795/phrasebound-releases/4149b9efc3c98682963caa0b26e08e6ce6ab360e/",
+"files_base": "https://raw.githubusercontent.com/chessy795/phrasebound-releases/a51d639614a65b6eedf00f283fbf478722faed5a/",
 "files": {
 "extension/audio_clip.js": "e1f5259ba8de8fba2b326a90373bf5d74308597d90621548558ff0b0814c1aae",
 "extension/background.js": "4850dfdeb2b272eb3862d4af2f9d41a37efc1983c5ba19f02878cee8a9c45841",
