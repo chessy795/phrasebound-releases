@@ -1628,6 +1628,7 @@
     '.ss-card.ss-wide { width: min(780px, calc(100vw - 24px)); }',
     '.ss-topbar { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid rgba(24, 28, 32, 0.10); }',
     '.ss-icon-btn { display:inline-grid; place-items:center; min-width:30px; min-height:30px; vertical-align:middle; }',
+    '.ss-icon-btn.ss-icon-text { display:inline-flex; align-items:center; gap:4px; padding:0 8px; font-size:13px; }',
     '.ss-orig .ss-icon-btn,.ss-tr-main .ss-icon-btn { margin-inline-end:6px; }',
     '.ss-tr-main rt { font-size:.68em; opacity:.8; user-select:none; }',
     '.ss-read-line { font-size: 14px; line-height: 1.55; color: #6b7280; margin-top: 4px; white-space: normal; user-select: text; }',
@@ -1968,6 +1969,7 @@
         if (aid && Array.isArray(aid.reading)) r = aid.reading.map(function (x) { return x[1] || x[0] || ''; }).join('');
         else if (aid && typeof aid.reading === 'string') r = aid.reading;
         if (r && r !== tk.w) any = true;
+        if (r && (lg === 'zh' || lg === 'yue')) r = r.replace(/\s+/g, '');   // one word, one group: dim2joeng2, niúnǎi
         out.push(lg === 'zh' ? (r || tk.w).toLowerCase() : (r || tk.w));   // CEDICT surname readings come capitalised
       }
       return any ? out.join(' ').replace(/ ([,.!?;:，。！？；：、）」』)])/g, '$1').replace(/([（「『(]) /g, '$1') : '';
@@ -3365,7 +3367,7 @@
       });
 
       var activeActionMode = 'explain';
-      function runExplain(targetTerm, actionMode) {
+      function runExplain(targetTerm, actionMode, auto) {
         var modeId = actionMode || activeActionMode || 'explain';
         activeActionMode = modeId;
         var actionDef = STUDY_ACTIONS[0];
@@ -3414,7 +3416,10 @@
           if (popupState.reqId !== reqId || !contentNode.isConnected) return;
           contentNode.classList.remove('ss-muted');
           if (!resp?.ok || resp.contextual !== true) {
-            contentNode.textContent = resp?.error || 'Local explanation unavailable. Select the action again to retry.';
+            if (auto) { expBox.remove(); btnExplain.classList.remove('ss-active'); positionFloatingHost(host, popupState.anchorRect); return; }
+            contentNode.textContent = /fetch|network|ECONN/i.test(resp?.error || '')
+              ? 'The free offline AI is not running. Open the Phrasebound toolbar popup to start or install it.'
+              : (resp?.error || 'Local explanation unavailable. Select the action again to retry.');
           } else {
             contentNode.textContent = formatExplanationText(resp).replace(/\*\*([^*\n]+)\*\*/g, '$1');
           }
@@ -3429,7 +3434,7 @@
         compare:'M3 4h18v16H3z M12 4v16',
         known: 'm4 12 5 5L20 6', copy: 'M8 8h12v13H8z M16 5V3H4v14h1'
       };
-      function setIcon(button, name, label) {
+      function setIcon(button, name, label, text, filled) {
         button.title = label;
         button.setAttribute('aria-label', label);
         button.classList.add('ss-icon-btn');
@@ -3442,7 +3447,9 @@
         const path = doc.createElementNS(ns, 'path');
         path.setAttribute('d', icons[name]);
         svg.appendChild(path);
+        if (filled) svg.setAttribute('fill', 'currentColor');
         button.appendChild(svg);
+        if (text) { button.classList.add('ss-icon-text'); button.appendChild(makeEl(doc, 'span', { text: text })); }
       }
       const audioStatus = makeEl(doc, 'div', {className:'ss-muted', role:'status'});
       win.speechSynthesis?.getVoices?.();
@@ -3472,7 +3479,8 @@
       var btnExplain = makeEl(doc, 'button', {
         type: 'button',
         className: 'ss-btn',
-        text: 'Study ▾',
+        text: 'Explain',
+        title: 'Explain, grammar, register and chunks (runs on your own computer)',
         onClick: function () { runExplain(selectedText, activeActionMode); }
       });
 
@@ -3541,7 +3549,7 @@
             line: popupState.surroundingLine,
             trans: popupState.currentTranslation
           }, sourceLang);
-          setIcon(btnSaveWord, 'known', 'Saved');
+          setIcon(btnSaveWord, 'save', 'Saved to your wordbook', 'Saved', true);
           btnSaveWord.classList.add('ss-active');
         }
       });
@@ -3554,7 +3562,7 @@
         onClick: function () {
           persistWordStatus(selectedText, 'known', null, sourceLang);
           retireKnownOnPage(selectedText.trim().toLowerCase());
-          setIcon(btnMarkKnown, 'known', 'Marked as known');
+          setIcon(btnMarkKnown, 'known', 'Marked as known: highlights retired', 'Known');
           btnMarkKnown.classList.add('ss-active');
         }
       });
@@ -3592,8 +3600,8 @@
       btnCompare.title = compareTip;
       btnCompare.setAttribute('aria-expanded','false');
       setIcon(btnCopy, 'copy', 'Copy');
-      setIcon(btnSaveWord, 'save', 'Save');
-      setIcon(btnMarkKnown, 'known', 'Mark as known');
+      setIcon(btnSaveWord, 'save', 'Save to your wordbook to review later', 'Save');
+      setIcon(btnMarkKnown, 'known', 'I know this: stop highlighting it', 'I know it');
       var topBar = makeEl(doc, 'div', { className: 'ss-topbar' }, [
         btnOrig,
         btnExplain,
@@ -3661,7 +3669,7 @@
       }
       if(explicitSelection && !ch.extension?.inIncognitoContext){
         const manage=makeEl(doc,'a',{text:'Search history'});manage.href=ch.runtime.getURL('review.html#highlight-history');manage.target='_blank';manage.rel='noopener noreferrer';
-        historyBox.append(historyToggle,' ',manage,historyStatus);card.appendChild(historyBox);
+        historyBox.append(historyToggle,' ',manage,historyStatus);
         const setRemember=value=>{remember=value;historyToggle.textContent=value?'Pause highlight history':'Remember highlights';};
         historyToggle.disabled=true;
         sendBgMessage({op:'highlightsState'},3000).then(res=>{
@@ -3703,6 +3711,7 @@
       card.appendChild(exWrap);
       card.appendChild(compareHolder);
       card.appendChild(explainHolder);
+      if (historyBox.firstChild !== historyBox.lastChild) card.appendChild(historyBox);  // history sits at the bottom
 
       function renderDictionarySources(sources, wordText) {
         if (!sources.length) return;
@@ -3948,6 +3957,7 @@
         });
       }
       if (!scanInfo) runTranslation();
+      if (!startInCompare && !recallItem) runExplain(selectedText, 'explain', true);
 
       if (startInCompare) {
         runCompare();

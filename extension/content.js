@@ -195,7 +195,7 @@
   const fillSpokenRates = async (slot, fe) => {
     try {
       const lang = normLangCode((V && V.lang) || '');
-      if (!lang || lang === 'yue' || lang === 'tl') return;
+      if (!lang || lang === 'tl') return;
       const d = await loadData(`spoken_${lang}.json`);
       if (!d || !d.r) return;
       const keys = [fe.display, fe.pattern, fe.surface].filter(Boolean);
@@ -203,15 +203,16 @@
       for (const k of keys) { r = d.r[k] || d.r[String(k).toLowerCase()]; if (r) break; }
       if (!r) return;
       const unit = d.meta && d.meta.unit === 'characters' ? 'characters' : 'words';
-      const names = ['YouTube talk', 'films and TV', 'TED talks'];
+      const names = (d.meta && d.meta.names) || ['YouTube talk', 'films and TV', 'TED talks'];
+      const short = (d.meta && d.meta.short) || ['YouTube', 'film', 'TED'];
       const fmt = (x) => (x >= 10 ? Math.round(x) : x >= 1 ? x.toFixed(1) : x > 0 ? x.toFixed(2) : '0');
       const top = r.indexOf(Math.max(...r));
       const others = r.filter((_, i) => i !== top);
       const lead = r[top] > 0 && others.every((x) => r[top] >= 2 * x) ? ` · mostly in ${names[top]}` : '';
       slot.textContent = '';
       slot.append(h('b', {}, `Heard per million ${unit}: `),
-        `YouTube ${fmt(r[0])} · film ${fmt(r[1])} · TED ${fmt(r[2])}${lead}`);
-      slot.title = 'Counted in YouTube captions, film/TV subtitles and TED talks';
+        `${r.map((x, i) => `${short[i]} ${fmt(x)}`).join(' · ')}${lead}`);
+      slot.title = 'Counted in ' + names.join(', ');
       slot.style.display = '';
     } catch (_) { /* optional */ }
   };

@@ -148,6 +148,7 @@ const COMPANION_SETUP_URL = 'https://github.com/chessy795/phrasebound-releases/r
   if ($('btnMediaCatalogue')) $('btnMediaCatalogue').addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('media-catalogue.html') });
   });
+  if ($('btnTopIdioms')) $('btnTopIdioms').addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('top-idioms.html') }));
   if ($('btnReview')) $('btnReview').addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('review.html') }));
   if ($('btnReader')) $('btnReader').addEventListener('click', () => {
     try { chrome.tabs.create({ url: chrome.runtime.getURL('reader.html') }); } catch (_) {}

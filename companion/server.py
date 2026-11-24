@@ -45,6 +45,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 import uvicorn
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # -I drops the script dir; native host starts us with -I
 if __package__:
     from . import media_catalogue, media_discovery, model_manager, pdf_tools
 else:

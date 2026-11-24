@@ -1,0 +1,17 @@
+:root { --bg:#fbfaf8; --fg:#1f2328; --mut:#6b7280; --bar:#e8833a; --line:#e5e7eb; }
+@media (prefers-color-scheme: dark) { :root { --bg:#16181c; --fg:#e6e6e6; --mut:#9ca3af; --line:#2c3036; } }
+body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, "Segoe UI", sans-serif; }
+.ti { max-width:760px; margin:0 auto; padding:24px 16px 48px; }
+h1 { font-size:26px; margin:0 0 12px; }
+.ti-lang select { font:inherit; margin-left:6px; padding:4px 6px; }
+.ti-stat { font-size:18px; margin:16px 0 4px; }
+.ti-stat b { color:var(--bar); }
+.ti-note { color:var(--mut); font-size:13px; margin:0 0 16px; }
+.ti-list { padding-left:2.6em; margin:0; }
+.ti-list li { padding:6px 0; border-bottom:1px solid var(--line); }
+.ti-row { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
+.ti-exp { font-size:17px; font-weight:600; flex:1 1 220px; }
+.ti-gl { color:var(--mut); font-size:13px; flex-basis:100%; }
+.ti-num { color:var(--mut); font-size:13px; white-space:nowrap; }
+.ti-bar { height:4px; background:var(--bar); border-radius:2px; margin-top:4px; opacity:.75; }
+.ti-more { margin:16px 0 0; font:inherit; padding:6px 14px; cursor:pointer; }
