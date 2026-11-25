@@ -308,6 +308,37 @@
     ja: [['〜というより', 'frame', /というより/gu, 'Rather than describing it as the first thing, the speaker prefers a different description.']],
   };
 
+  // es/it/pt: a headword written in a finite form ("me di cuenta", "ho imparato", "não é", "potrebbe essere") names
+  // that exact form, so the line must contain it; lemma matching would let "se da cuenta" or "ha imparato" fire with a
+  // first-person gloss. Short accented words (qué, sí, mí, à, é) are distinct words from their unaccented twins.
+  const FORM_LOCK_LANGS = new Set(['es', 'it', 'pt']);
+  const INFINITIVE_LIKE = /(?:ar|er|ir|ír|ôr|or|re|rse|rsi|rlo|rla|rle|rli|rne|rci|rmi|rti|rme|rte|rnos|rles|rlos|rlas)$/u;
+  // clitics that are also articles: skipping them before a noun turns "en la tierra" into "en tierra"
+  const ARTICLE_CLITICS = new Set(['la', 'las', 'lo', 'los', 'le', 'les', "l'", 'il', 'i', 'gli', 'o', 'a', 'os', 'as']);
+  const VERB_LEMMA = /(?:ar|er|ir|ír|ôr|re)$/u;
+  const formLockWords = (cand, L, lang) => {
+    if (cand._lock !== undefined) return cand._lock;
+    const words = String(cand.display || '').toLowerCase().replace(/’/g, "'").split(/[\s…*]+|\.{2,}/u).filter(Boolean);
+    const lock = [];
+    for (const w of words) {
+      if (!/^[\p{L}']+$/u.test(w) || (ROMANCE_CLITICS[lang] && ROMANCE_CLITICS[lang].has(w))) continue;
+      if (/^(?:algo|alguien|alguém|qualcuno|qualcosa|someone)$/u.test(w)) continue;
+      const accentShort = w.length <= 3 && /[\u00c0-\u00ff]/u.test(w);
+      const lm = L && L.lemma ? L.lemma(w) : w;
+      const finite = lm !== w && VERB_LEMMA.test(lm) && !INFINITIVE_LIKE.test(w);
+      if (accentShort || finite) lock.push(w);
+    }
+    cand._lock = lock;
+    return lock;
+  };
+  const formLockOk = (cand, L, lang, surface) => {
+    if (!FORM_LOCK_LANGS.has(lang)) return true;
+    const lock = formLockWords(cand, L, lang);
+    if (!lock.length) return true;
+    const have = new Set(surface.toLowerCase().replace(/’/g, "'").split(/[^\p{L}\p{M}']+/u).filter(Boolean));
+    return lock.every((w) => have.has(w));
+  };
+
   const checkReviewedSurface = (lang, display, surface, text, start, end) => {
     const before = text.slice(0, start).trimEnd();
     const after = text.slice(end).trimStart();
@@ -1232,7 +1263,8 @@
       const curTok = wordToks[wi];
       const isTransparent =
         ROMANCE_NEG_ADV[langCode].has(curTok.low) ||
-        (ROMANCE_CLITICS[langCode] && ROMANCE_CLITICS[langCode].has(curTok.low) && curTok.lem !== p && curTok.low !== p) ||
+        (ROMANCE_CLITICS[langCode] && ROMANCE_CLITICS[langCode].has(curTok.low) && curTok.lem !== p && curTok.low !== p &&
+          (!FORM_LOCK_LANGS.has(langCode) || !ARTICLE_CLITICS.has(curTok.low) || /(?:ar|er|ir|ír|ôr|re|rsi|rse)$/u.test(p))) ||
         (ROMANCE_AUX_LEMMAS[langCode] && ROMANCE_AUX_LEMMAS[langCode].has(curTok.lem) && curTok.lem !== p && curTok.low !== p);
       if (isTransparent && !curTok.commaBefore) {
         const skipped = matchFrom(wordToks, wi + 1, parts, pi, langCode, cand);
@@ -1411,6 +1443,7 @@
         const charEnd = rawStarts[endRaw] + tokens[endRaw].w.length;
         const surface = text.slice(charStart, charEnd);
         if (!checkReviewedSurface(langCode, cand.display.toLowerCase(), surface, text, charStart, charEnd)) continue;
+        if (!formLockOk(cand, L, langCode, surface)) continue;
         // For wide German V2 brackets ('**'), reserve only the matched anchor words so inner idioms/words can still match!
         if (cand.deBracket) {
           for (const x of hitWordIdxs) usedWord.add(x);

@@ -27,7 +27,7 @@ async function load(lang) {
       if (ex && typeof ex === 'object' && ex.play && row[0]) playSet.add(String(row[0]).toLowerCase());
     }
   } catch (_) {}
-  allRows = Object.entries(d.r).filter(([, r]) => r[0] > 0).sort((a, b) => b[1][0] - a[1][0] || b[1][1] - a[1][1]);
+  allRows = Object.entries(d.r).filter(([, r]) => r[0] > 0).sort((a, b) => b[1][0] - a[1][0] || (b[1][1] || 0) - (a[1][1] || 0));
   const total = allRows.reduce((s, [, r]) => s + r[0], 0);
   let acc = 0, n = 0;
   for (const [, r] of allRows) { acc += r[0]; n++; if (acc >= 0.8 * total) break; }
