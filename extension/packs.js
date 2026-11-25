@@ -13,10 +13,10 @@
     for (const b of new TextEncoder().encode(s)) h = Math.imul(h ^ b, 0x01000193) >>> 0;
     return h;
   }
-  async function gz(url) {
-    const r = await fetch(url);
+  async function gz(url, plain) {
+    const r = await fetch(plain ? url.replace(/\.gz$/, '') : url);
     if (!r.ok) throw new Error('pack ' + r.status);
-    return JSON.parse(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text());
+    return plain ? r.json() : JSON.parse(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text());
   }
   function meta(pack) {
     if (!metaP.has(pack)) metaP.set(pack, fetch(chrome.runtime.getURL(`data/packs/${pack}/meta.json`)).then((r) => (r.ok ? r.json() : null)).catch(() => null));
@@ -28,7 +28,7 @@
     const n = fnv(key) % m.shards, ck = pack + '/' + n;
     if (!shardC.has(ck)) {
       if (shardC.size > 120) shardC.delete(shardC.keys().next().value);
-      shardC.set(ck, gz(chrome.runtime.getURL(`data/packs/${pack}/${n}.json.gz`)).catch((e) => { shardC.delete(ck); throw e; }));
+      shardC.set(ck, gz(chrome.runtime.getURL(`data/packs/${pack}/${n}.json.gz`), !!m.plain).catch((e) => { shardC.delete(ck); throw e; }));
     }
     return shardC.get(ck);
   }

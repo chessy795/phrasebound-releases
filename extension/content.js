@@ -386,7 +386,190 @@
   };
 
   // ---- UI roots & Cinema Split-Stage controller ----
-  let ov, panel, headEl, qbarEl, dockEl, modalBack, tabsEl, listEl, ytpBtn, ytpGearBtn, floatBtn;
+  let ov, panel, headEl, qbarEl, dockEl, modalBack, tabsEl, listEl, ytpBtn, ytpLangBtn, ytpGearBtn, floatBtn, langPopEl;
+  let langPopOpen = false;
+
+  const CORE_TL_OPTS = [
+    ['en', 'English (en)'],
+    ['zh-Hant', '繁體中文 (zh-Hant)'],
+    ['zh-Hans', '简体中文 (zh-Hans)'],
+    ['yue', '粵語 Cantonese (yue)'],
+    ['ja', '日本語 (ja)'],
+    ['ko', '한국어 (ko)'],
+    ['es', 'Español (es)'],
+    ['fr', 'Français (fr)'],
+    ['de', 'Deutsch (de)'],
+    ['pt', 'Português (pt)'],
+    ['it', 'Italiano (it)'],
+    ['ru', 'Русский (ru)'],
+    ['tl', 'Tagalog / Filipino (tl)'],
+  ];
+  const SHORT_LANG_LABELS = {
+    en: 'EN', 'zh-hant': '繁中', 'zh-tw': '繁中', 'zh-hk': '繁中',
+    'zh-hans': '简中', 'zh-cn': '简中', zh: '中文', yue: '粵語',
+    ja: '日本語', ko: '한국어', es: 'ES', fr: 'FR', de: 'DE',
+    pt: 'PT', it: 'IT', ru: 'RU', tl: 'TL', vi: 'VI', th: 'TH',
+  };
+  const shortLangLabel = (code) => {
+    const raw = String(code || '').trim();
+    if (!raw) return 'Off';
+    const low = raw.toLowerCase();
+    return SHORT_LANG_LABELS[low] || SHORT_LANG_LABELS[low.split('-')[0]] || raw.toUpperCase().slice(0, 6);
+  };
+  const labelForTlCode = (code) => {
+    const low = String(code || '').toLowerCase();
+    const core = CORE_TL_OPTS.find(([c]) => c.toLowerCase() === low);
+    if (core) return core[1];
+    const yt = V && Array.isArray(V.tlOpts) ? V.tlOpts.find(([c]) => String(c || '').toLowerCase() === low) : null;
+    return (yt && yt[1]) || code;
+  };
+  const recordRecentTl = (code) => {
+    const v = String(code || '').trim();
+    if (!v) return;
+    S.set.lastTl = v;
+    const prev = Array.isArray(S.set.recentTls) ? S.set.recentTls : [];
+    const low = v.toLowerCase();
+    S.set.recentTls = [v, ...prev.filter((c) => String(c || '').toLowerCase() !== low)].slice(0, 4);
+  };
+  const buildGroupedTlSelect = (curVal, onChange, opts = {}) => {
+    const { offLabel = 'Translate: Off', className = '', ariaLabel = 'Translate subtitles to' } = opts;
+    const s = h('select', { class: className, 'aria-label': ariaLabel, onchange: (e) => onChange(e.target.value) });
+    const cur = String(curVal || '');
+    const offOpt = h('option', { value: '' }, offLabel);
+    if (!cur) offOpt.selected = true;
+    s.append(offOpt);
+
+    const seen = new Set();
+    const addOpt = (parent, code, text) => {
+      const o = h('option', { value: code }, text);
+      if (code === cur) o.selected = true;
+      parent.append(o);
+      seen.add(String(code).toLowerCase());
+    };
+
+    const recRaw = [...(Array.isArray(S.set.recentTls) ? S.set.recentTls : []), ...(cur ? [cur] : [])];
+    const recList = [];
+    for (const c of recRaw) {
+      const k = String(c || '').trim().toLowerCase();
+      if (k && !recList.some((x) => x.toLowerCase() === k)) recList.push(String(c).trim());
+      if (recList.length >= 4 && (!cur || recList.some((x) => x.toLowerCase() === cur.toLowerCase()))) break;
+    }
+    if (recList.length) {
+      const grp = h('optgroup', { label: 'Recent' });
+      for (const c of recList) addOpt(grp, c, labelForTlCode(c));
+      s.append(grp);
+    }
+
+    const coreToAdd = CORE_TL_OPTS.filter(([c]) => !seen.has(c.toLowerCase()));
+    if (coreToAdd.length) {
+      const grp = h('optgroup', { label: 'Phrasebound languages' });
+      for (const [c, lbl] of coreToAdd) addOpt(grp, c, lbl);
+      s.append(grp);
+    }
+
+    const extra = ((V && V.tlOpts) || []).filter(([c]) => c && !seen.has(String(c).toLowerCase()));
+    if (extra.length) {
+      const grp = h('optgroup', { label: 'More languages' });
+      for (const [c, lbl] of extra) {
+        const k = String(c).toLowerCase();
+        if (!seen.has(k)) addOpt(grp, c, lbl);
+      }
+      s.append(grp);
+    }
+    s.value = cur;
+    return s;
+  };
+  const closeLangPopover = () => {
+    langPopOpen = false;
+    if (langPopEl) { langPopEl.remove(); langPopEl = null; }
+    if (ytpLangBtn) ytpLangBtn.setAttribute('aria-expanded', 'false');
+  };
+  const setSourceTrack = (val) => {
+    S.set.trackKey = val;
+    S.set.trackVid = curVidKey();
+    S.set.lang = String(val || '').split('|')[0];
+    save('set');
+    closeLangPopover();
+    load();
+  };
+  const setTargetLang = (val) => {
+    const next = String(val || '');
+    recordRecentTl(next);
+    S.set.tl = next;
+    save('set', true);
+    updatePlayerLangPill();
+    if (langPopOpen) renderLangPopover();
+    load();
+  };
+  const toggleTranslationOnOff = () => {
+    if (S.set.tl) {
+      recordRecentTl(S.set.tl);
+      setTargetLang('');
+      toast('Translation off (Shift+T to restore)');
+    } else {
+      const restore = S.set.lastTl || 'en';
+      setTargetLang(restore);
+      toast(`Translation: ${shortLangLabel(restore)}`);
+    }
+  };
+  const updatePlayerLangPill = () => {
+    if (!ytpLangBtn) return;
+    const srcCode = V ? shortLangLabel(V.lang || (S.set.lang || '')) : '';
+    const dstCode = S.set.tl ? shortLangLabel(S.set.tl) : 'Off';
+    ytpLangBtn.textContent = srcCode ? (S.set.tl ? `${srcCode} → ${dstCode}` : `${srcCode} · Off`) : 'CC Lang';
+    ytpLangBtn.setAttribute('aria-expanded', String(!!langPopOpen));
+    ytpLangBtn.classList.toggle('ss-on', !!S.set.tl);
+  };
+  const renderLangPopover = () => {
+    if (langPopEl) { langPopEl.remove(); langPopEl = null; }
+    if (!langPopOpen) return;
+    const host = document.fullscreenElement || playerContainer() || document.body;
+    if (!host) return;
+    const trackOpts = ((V && V.info && V.info.tracks) || []).map((t) => [
+      trackKey(t),
+      (t.name || t.lang) + (t.auto && !/auto/i.test(t.name || '') ? ' (auto)' : ''),
+    ]);
+    const chipCodes = [];
+    for (const c of [...(Array.isArray(S.set.recentTls) ? S.set.recentTls : []), 'en', 'zh-Hant', 'zh-Hans', 'yue', 'ja', 'ko']) {
+      const k = String(c || '').trim();
+      if (k && !chipCodes.some((x) => x.toLowerCase() === k.toLowerCase())) chipCodes.push(k);
+      if (chipCodes.length >= 6) break;
+    }
+    const chipRow = h('div', { class: 'ss-lp-chips' },
+      h('button', {
+        type: 'button',
+        class: 'ss-lp-chip' + (!S.set.tl ? ' ss-act' : ''),
+        onclick: () => { setTargetLang(''); closeLangPopover(); },
+      }, 'Off'),
+      ...chipCodes.map((c) => h('button', {
+        type: 'button',
+        class: 'ss-lp-chip' + (S.set.tl === c ? ' ss-act' : ''),
+        title: labelForTlCode(c),
+        onclick: () => { setTargetLang(c); closeLangPopover(); },
+      }, shortLangLabel(c))));
+
+    langPopEl = h('div', {
+      id: 'ss-lang-pop',
+      class: S.set.darkTheme === false ? 'ss-theme-light' : '',
+      onclick: (e) => e.stopPropagation(),
+    },
+      h('div', { class: 'ss-lp-head' },
+        h('span', {}, 'Subtitle languages'),
+        h('button', { type: 'button', class: 'ss-lp-close', title: 'Close (Esc)', onclick: closeLangPopover }, '×')),
+      h('div', { class: 'ss-lp-sec' },
+        h('div', { class: 'ss-lp-lbl' }, 'Video subtitle track'),
+        trackOpts.length
+          ? sel(trackOpts, (V && V.trackKey) || '', setSourceTrack)
+          : h('div', { class: 'ss-lp-empty' }, 'No text tracks on this video')),
+      h('div', { class: 'ss-lp-sec' },
+        h('div', { class: 'ss-lp-lbl' }, 'Translate to (quick pick)'),
+        chipRow,
+        buildGroupedTlSelect(S.set.tl || '', (val) => { setTargetLang(val); closeLangPopover(); }, { offLabel: 'Translate: Off', ariaLabel: 'Translate subtitles to' })),
+      h('div', { class: 'ss-lp-sec' },
+        h('div', { class: 'ss-lp-lbl' }, '3rd language (optional)'),
+        buildGroupedTlSelect(S.set.tl2 || '', (val) => { S.set.tl2 = val; save('set'); closeLangPopover(); load(); }, { offLabel: 'None', ariaLabel: 'Third subtitle language' })));
+    host.append(langPopEl);
+  };
 
   const captionBottom = () => S.set.subtitleBottomPct ?? (S.set.overlayBottom === 10 ? 5 : S.set.overlayBottom ?? 5);
   const getBlurMode = () => V?.blurMode || 'off';
@@ -923,7 +1106,26 @@
         }, captionMark());
         rc.prepend(ytpBtn);
       }
-      // Settings right beside the SS button, so it is easy to find (the panel's own ⚙ is small)
+      if (!ytpLangBtn || !ytpLangBtn.isConnected || ytpLangBtn.parentElement !== rc) {
+        if (ytpLangBtn) ytpLangBtn.remove();
+        ytpLangBtn = h('button', {
+          type: 'button',
+          class: controlClass + ' ss-ytp-lang',
+          title: 'Change subtitle & translation languages',
+          'aria-label': 'Subtitle and translation languages',
+          'aria-expanded': String(!!langPopOpen),
+          onclick: (e) => {
+            e.stopPropagation();
+            langPopOpen = !langPopOpen;
+            renderLangPopover();
+            updatePlayerLangPill();
+          },
+        });
+        if (ytpBtn.nextSibling !== undefined && rc.insertBefore) rc.insertBefore(ytpLangBtn, ytpBtn.nextSibling || null);
+        else rc.append(ytpLangBtn);
+      }
+      updatePlayerLangPill();
+      // Settings right beside the SS language pill, so it is easy to find (the panel's own ⚙ is small)
       if (!ytpGearBtn || !ytpGearBtn.isConnected || ytpGearBtn.parentElement !== rc) {
         if (ytpGearBtn) ytpGearBtn.remove();
         ytpGearBtn = h('button', {
@@ -931,9 +1133,10 @@
           class: controlClass + ' ss-ytp-gear',
           title: 'Phrasebound settings',
           'aria-label': 'Phrasebound settings',
-          onclick: (e) => { e.stopPropagation(); settingsOpen = true; drawSettings(); },
+          onclick: (e) => { e.stopPropagation(); closeLangPopover(); settingsOpen = true; drawSettings(); },
         }, h('span', { 'aria-hidden': 'true' }, '⚙︎'));
-        if (ytpBtn.nextSibling !== undefined && rc.insertBefore) rc.insertBefore(ytpGearBtn, ytpBtn.nextSibling || null);
+        const anchor = ytpLangBtn || ytpBtn;
+        if (anchor.nextSibling !== undefined && rc.insertBefore) rc.insertBefore(ytpGearBtn, anchor.nextSibling || null);
         else rc.append(ytpGearBtn);
       }
       return;
@@ -1038,9 +1241,12 @@
     if (panel) panel.remove();
     if (modalBack) modalBack.remove();
     if (floatBtn) floatBtn.remove();
+    if (ytpLangBtn) ytpLangBtn.remove();
+    if (langPopEl) langPopEl.remove();
     if (fsPanelBtn) fsPanelBtn.remove(); if (panelTab) { panelTab.remove(); panelTab = null; }
     document.documentElement.classList.remove('ss-fs-panel');
-    ov = panel = qbarEl = modalBack = floatBtn = fsPanelBtn = null;
+    ov = panel = qbarEl = modalBack = floatBtn = ytpLangBtn = langPopEl = fsPanelBtn = null;
+    langPopOpen = false;
     settingsOpen = false;
     V = null;
     asrState.active = false;
@@ -4262,8 +4468,8 @@
           else { drawList(); if (V && V.cur >= 0) drawLine(V.cur); }
         })),
       h('div', { class: 'ss-sec-hdr', id: 'ss-sec-subs' }, 'Subtitles'),
-      V && trackOpts.length ? mkRow('Subtitle language', sel(trackOpts, V.trackKey, (val) => { S.set.trackKey = val; S.set.trackVid = curVidKey(); S.set.lang = val.split('|')[0]; save('set'); load(); drawSettings(); })) : null,
-      V ? mkRow('Translate to', sel([['', 'Off']].concat(V.tlOpts || []), S.set.tl || '', (val) => { S.set.tl = val; save('set', true); load(); drawSettings(); })) : null,
+      V && trackOpts.length ? mkRow('Subtitle language', sel(trackOpts, V.trackKey, (val) => { setSourceTrack(val); drawSettings(); })) : null,
+      V ? mkRow('Translate to', buildGroupedTlSelect(S.set.tl || '', (val) => { setTargetLang(val); drawSettings(); }, { offLabel: 'Off', ariaLabel: 'Translate to' })) : null,
       V && S.set.tl ? mkRow('Translation track', sel([
         ['', 'Prefer publisher captions'],
         ...((V.info.tracks || []).filter(t => !t.auto && !['asr','forced'].includes(t.kind) && sameTranslationLanguage(t.lang, S.set.tl))
@@ -4275,7 +4481,7 @@
       })) : null,
       V?.editStorageKey ? mkRow('Current subtitle',h('button',{class:'ss-btn-chip',disabled:V.cur<0,
         onclick:editCurrentTranslation},'Edit translation')) : null,
-      V ? mkRow('Third language (trilingual subtitles)', sel([['', 'Off']].concat(V.tlOpts || []), S.set.tl2 || '', (val) => { S.set.tl2 = val; save('set'); load(); drawSettings(); })) : null,
+      V ? mkRow('Third language (trilingual subtitles)', buildGroupedTlSelect(S.set.tl2 || '', (val) => { S.set.tl2 = val; save('set'); load(); drawSettings(); }, { offLabel: 'Off', ariaLabel: 'Third language (trilingual subtitles)' })) : null,
       mkRow('Readings above Japanese / Chinese / Cantonese / Korean', sel([
         ['romaji', 'Romaji / Pīnyīn / Jyutping (Auto)'],
         ['hira', 'Hiragana (かな)'],
@@ -4474,6 +4680,7 @@
         mkKbd('1 / 2', 'Playback speed −0.1× / +0.1×'),
         mkKbd('C', 'Copy line + translation'),
         mkKbd('O', 'Capture burned-in subtitle frame (OCR)'),
+        mkKbd('Shift + T', 'Toggle subtitle translation on / off'),
         mkKbd('Alt + T / Alt + D', 'Webpage bilingual / Compare models'),
         mkKbd('Shift + Click', 'Select multi-word phrase span'),
         mkKbd('Right-click', 'Cycle Learning / Known'),
@@ -4516,14 +4723,38 @@
     const normCur = normLangCode(V.lang);
     const hasCjk = (V.lines || []).some((l) => /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7a3]/.test(l.t)) || /^(ja|zh|cn|yue|ko)/.test(normCur);
 
-    appendClean(headEl,
-      trackOpts.length ? sel(trackOpts, V.trackKey, (val) => { S.set.trackKey = val; S.set.trackVid = curVidKey(); S.set.lang = val.split('|')[0]; save('set'); load(); }) : null,
-      sel([['', 'Translate: Off']].concat(V.tlOpts || []), S.set.tl || '', (val) => { S.set.tl = val; save('set', true); load(); }),
+    const srcSel = trackOpts.length
+      ? sel(trackOpts, V.trackKey, setSourceTrack)
+      : h('span', { class: 'ss-lang-empty', title: 'No caption tracks found on this video' }, 'No captions');
+    if (trackOpts.length) {
+      srcSel.className = 'ss-lang-src';
+      srcSel.setAttribute('aria-label', 'Video subtitle track');
+      srcSel.title = 'Source subtitle track';
+    }
+    const dstSel = buildGroupedTlSelect(S.set.tl || '', setTargetLang, {
+      offLabel: 'Translate: Off',
+      className: 'ss-lang-dst',
+      ariaLabel: 'Translate subtitles to',
+    });
+    const langToggleBtn = h('button', {
+      type: 'button',
+      class: 'ss-lang-toggle' + (S.set.tl ? ' ss-teal' : ''),
+      title: 'Toggle translation on/off (Shift+T)',
+      onclick: toggleTranslationOnOff,
+    }, S.set.tl ? 'Off' : 'On');
+    const langPair = h('div', { class: 'ss-lang-pair' },
+      srcSel,
+      h('span', { class: 'ss-lang-arrow', 'aria-hidden': 'true' }, '→'),
+      dstSel,
+      langToggleBtn);
+    const headActions = h('div', { class: 'ss-head-actions' },
       h('button', { title: 'Settings & Shortcuts', onclick: () => { settingsOpen = !settingsOpen; drawSettings(); } }, '⚙'),
       h('button', { class: 'ss-hide-panel', title: 'Hide panel (H). Subtitles on the video stay on.', onclick: () => {
         if (document.fullscreenElement && panel) { panel.dataset.fsOpen = '0'; applyVisualPrefs(); setTimeout(() => window.dispatchEvent(new Event('resize')), 60); }
         else setPanelHidden(true);
       } }, '»'));
+    appendClean(headEl, langPair, headActions);
+    updatePlayerLangPill();
 
     const d = V.analysis && V.analysis.diff;
     if (d && d.totalTokens > 0 && V.ranks && (qtrayOpen || fitCardOpen)) {
@@ -6629,7 +6860,20 @@
   let loopIdx = -1;   // L: repeat one line until you move on
   let peekTimer = null;
 
+  document.addEventListener('click', (e) => {
+    if (!langPopOpen || !langPopEl) return;
+    const inPop = typeof langPopEl.contains === 'function' && langPopEl.contains(e.target);
+    const inBtn = ytpLangBtn && typeof ytpLangBtn.contains === 'function' && ytpLangBtn.contains(e.target);
+    if (!inPop && !inBtn) closeLangPopover();
+  });
+
   document.addEventListener('keydown', (e) => {
+    if (langPopOpen && e.key === 'Escape') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      closeLangPopover();
+      return;
+    }
     if (ocrBackEl && e.key === 'Escape') {
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -6650,6 +6894,12 @@
     }
     const tgt0 = e.target;
     const inEditable0 = tgt0 && (tgt0.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(tgt0.tagName));
+    if (!inEditable0 && !e.ctrlKey && !e.metaKey && !e.altKey && e.shiftKey && !e.repeat && e.key && e.key.toLowerCase() === 't' && V) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      toggleTranslationOnOff();
+      return;
+    }
     if (!inEditable0 && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat && e.key && e.key.toLowerCase() === 'o' && video()) {
       e.preventDefault();
       e.stopImmediatePropagation();

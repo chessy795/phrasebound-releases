@@ -20,8 +20,15 @@
     return b.slice(0, i) + (b[i] === ch ? marked : marked.toUpperCase()) + b.slice(i + 1);
   }
   async function load() {
-    const r = await fetch(chrome.runtime.getURL('data/cedict.txt.gz'));
-    const text = await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text();
+    // Store builds ship plain data/cedict.txt (the Edge store rejects compressed files); source builds ship .gz.
+    let text;
+    try {
+      const r = await fetch(chrome.runtime.getURL('data/cedict.txt.gz'));
+      if (!r.ok) throw new Error('no gz');
+      text = await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text();
+    } catch (e) {
+      text = await (await fetch(chrome.runtime.getURL('data/cedict.txt'))).text();
+    }
     const map = new Map();
     const re = /^(\S+) (\S+) \[([^\]]*)\] \/(.+)\/\s*$/;
     for (const line of text.split('\n')) {
