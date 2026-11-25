@@ -66,6 +66,9 @@ body {
 }
 .pp-dot.online { background: #2da44e; }
 .pp-dot.offline { background: #d97706; }
+.pp-power { font: inherit; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--pb-border, #ccc); background: transparent; color: inherit; cursor: pointer; white-space: nowrap; }
+.pp-power.off { opacity: .75; }
+.pp-power:disabled { cursor: progress; opacity: .5; }
 
 .pp-controls { display: grid; grid-template-columns: 1.15fr 1fr; gap: 6px; }
 .pp-field {

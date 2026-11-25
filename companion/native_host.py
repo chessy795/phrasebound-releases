@@ -99,10 +99,44 @@ def ensure_running(wait_sec=5.0):
     return {'ok': False, 'started': True, 'error': 'Companion starting slowly; retry /health shortly', 'port': PORT}
 
 
+def listening_pid():
+    """PID of the process listening on PORT (the companion), or None."""
+    try:
+        out = subprocess.run(['netstat', '-ano', '-p', 'tcp'], capture_output=True, timeout=5,
+                             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)).stdout.decode('latin-1')
+    except Exception:
+        return None
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 5 and parts[1].endswith(f':{PORT}') and parts[3].upper() == 'LISTENING':
+            return int(parts[4])
+    return None
+
+
+def stop_server():
+    """Stop the companion and everything it started (llama-server translators, side model), freeing the GPU."""
+    pid = listening_pid()
+    if not pid:
+        return {'ok': True, 'stopped': False, 'port': PORT}
+    if os.name == 'nt':
+        subprocess.run(['taskkill', '/PID', str(pid), '/T', '/F'], capture_output=True, timeout=10,
+                       creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    else:
+        os.kill(pid, 15)
+    for _ in range(25):
+        if not is_alive(timeout=0.2):
+            return {'ok': True, 'stopped': True, 'port': PORT}
+        time.sleep(0.2)
+    return {'ok': False, 'error': 'Companion did not stop', 'port': PORT}
+
+
 def main():
     try:
         msg = read_msg()
         op = (msg or {}).get('op', 'ensure') if isinstance(msg, dict) else 'ensure'
+        if op == 'stop':
+            send_msg(stop_server())
+            return
         if op == 'status':
             send_msg({'ok': is_alive(), 'port': PORT})
             return

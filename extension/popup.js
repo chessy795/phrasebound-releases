@@ -91,9 +91,26 @@ const COMPANION_SETUP_URL = 'https://github.com/chessy795/phrasebound-releases/r
         }, (r) => {
           const dot = $('compDot');
           const st = $('compStatus');
+          const pw = $('compPower');
+          if (pw) {
+            const off = !!curSet.companionOff;
+            pw.hidden = !(r && r.ok) && !off;
+            pw.textContent = off ? 'AI off' : 'AI on';
+            pw.classList.toggle('off', off);
+            pw.onclick = () => {
+              pw.disabled = true;
+              pw.textContent = off ? 'Starting…' : 'Stopping…';
+              chrome.runtime.sendMessage({ op: 'setCompanionPower', on: off }, () => { window.location.reload(); });
+            };
+          }
+          if (curSet.companionOff) {
+            if (dot) dot.classList.add('offline');
+            if (st) st.textContent = 'Local AI off · Free Web AI ready';
+            return;
+          }
           if (r && r.ok) {
             if (dot) dot.classList.add('online');
-            const active = r.active_mt || curSet.mtModel || 'plamo-2b';
+            const active = r.active_mt_model || r.active_mt || curSet.mtModel || 'plamo-2b';
             const dl = r.model_download;
             if (st) st.textContent = dl && dl.state === 'downloading' && dl.total
               ? `Local AI: downloading translator ${Math.floor(100 * dl.bytes / dl.total)}%`

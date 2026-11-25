@@ -126,6 +126,9 @@ let nativeWakePromise = null;
 let nativeWakeCooldownUntil = 0;
 let nativeHostMissingUntil = 0;
 let autoStartCompanionEnabled = true;
+// Local AI switched off in the popup: no requests reach the companion and nothing wakes it (frees the GPU)
+let companionOff = false;
+const isLocalCompanion = () => /^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/.test(companionUrl);
 
 try {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -134,6 +137,7 @@ try {
       if (st && typeof st.autoStartCompanion === 'boolean') {
         autoStartCompanionEnabled = st.autoStartCompanion;
       }
+      companionOff = !!(st && st.companionOff);
       if (st && st.companionUrl) {
         companionUrl = String(st.companionUrl).replace(/\/+$/, '');
       }
@@ -144,6 +148,7 @@ try {
         if (nv && typeof nv.autoStartCompanion === 'boolean') {
           autoStartCompanionEnabled = nv.autoStartCompanion;
         }
+        if (nv) companionOff = !!nv.companionOff;
         if (nv && nv.companionUrl) {
           companionUrl = String(nv.companionUrl).replace(/\/+$/, '');
         }
@@ -153,6 +158,7 @@ try {
 } catch (e) {}
 
 async function ensureCompanionRunning(force = false) {
+  if (companionOff && !force) return { ok: false, skipped: true, off: true };
   if (!force && (!autoStartCompanionEnabled || Date.now() < nativeHostMissingUntil || Date.now() < nativeWakeCooldownUntil)) {
     return { ok: false, skipped: true };
   }
@@ -876,6 +882,7 @@ async function maybeReloadForUpdate(h) {
 }
 
 async function callCompanion(path, body = null, method = null, timeoutMs = 60000, extraHeaders = null, _retriedWake = false) {
+  if (companionOff && isLocalCompanion()) return { ok: false, off: true, error: 'Local AI is off' };
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -1906,6 +1913,28 @@ chrome.runtime.onMessage.addListener((m, s, send) => {
       return true;
     }
     callCompanion('/translate_batch', m.body || m, 'POST', 60000).then(send);
+    return true;
+  }
+  if (m.op === 'setCompanionPower') {
+    const on = !!m.on;
+    chrome.storage.local.get(['ss_set'], (r) => {
+      const st = Object.assign({}, (r && r.ss_set) || {}, { companionOff: !on });
+      companionOff = !on;
+      chrome.storage.local.set({ ss_set: st }, () => {
+        if (on) {
+          ensureCompanionRunning(true).then((res) => send(Object.assign({ on: true }, res || {})));
+        } else {
+          try {
+            chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { op: 'stop' }, (resp) => {
+              const err = chrome.runtime.lastError;
+              send(err ? { ok: false, on: false, error: String(err.message || err) } : Object.assign({ on: false }, resp || { ok: true }));
+            });
+          } catch (e) {
+            send({ ok: false, on: false, error: String((e && e.message) || e) });
+          }
+        }
+      });
+    });
     return true;
   }
   if (m.op === 'wakeCompanion') {

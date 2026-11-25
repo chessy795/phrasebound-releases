@@ -3370,7 +3370,7 @@
       toast('Checking local companion (:8787)…');
       await checkCompanionLive();
       if (!companionHealth || !companionHealth.ok) {
-        toast('Companion offline — start companion/start_companion.bat');
+        toast(S.set.companionOff ? 'Local AI is off — turn it on in the Phrasebound popup' : 'Companion offline — start companion/start_companion.bat');
         return;
       }
     }
@@ -3863,7 +3863,7 @@
       await checkCompanionLive(15000);
       if (run !== myRun || V?.info.videoId !== vid) return;
       if (!companionHealth || !companionHealth.ok) {
-        toast('Companion offline — start companion/start_companion.bat for GPU Live ASR');
+        toast(S.set.companionOff ? 'Local AI is off — turn it on in the Phrasebound popup for Live ASR' : 'Companion offline — start companion/start_companion.bat for GPU Live ASR');
         return;
       }
     }
