@@ -155,7 +155,7 @@ def _can_follow_instructions(key=None):
 PLAMO_PORT = int(os.environ.get('YT_STUDY_PLAMO_PORT', '8410'))
 PLAMO_SLOTS = int(os.environ.get('YT_STUDY_PLAMO_SLOTS', '4'))
 IDLE_UNLOAD_SEC = int(os.environ.get('YT_STUDY_IDLE_UNLOAD_SEC', '300'))
-MT_IDLE_UNLOAD_SEC = int(os.environ.get('YT_STUDY_MT_IDLE_UNLOAD_SEC', '0'))  # 0 = keep the translator loaded
+MT_IDLE_UNLOAD_SEC = int(os.environ.get('YT_STUDY_MT_IDLE_UNLOAD_SEC', '600'))  # free the GPU after 10 idle minutes; 0 = keep loaded
 BELOW_NORMAL_FLAGS = 0x00004000 if os.name == 'nt' else 0
 
 TRANSCRIBE_CLI = os.environ.get('YT_STUDY_TRANSCRIBE_CLI', r'G:\CodexModels\transcribe.cpp-vulkan\transcribe-cli.exe')
@@ -255,8 +255,8 @@ def _unload_idle_models():
 
 
 def _idle_reaper_loop():
-    # The translator stays loaded (about 0.5 GB VRAM for PLaMo 0.8B) so select-to-translate is instant.
-    # Set YT_STUDY_MT_IDLE_UNLOAD_SEC to a number of seconds to unload it after idle again.
+    # The translator unloads after 10 idle minutes so it never holds graphics memory while games or videos run;
+    # the next request reloads it (a few seconds). YT_STUDY_MT_IDLE_UNLOAD_SEC=0 keeps it loaded.
     while True:
         time.sleep(30)
         idle = time.time() - _last_gpu_activity
