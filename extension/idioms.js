@@ -993,6 +993,8 @@
   // A clause linking foot width to choosing or wearing shoes usually uses the literal sense.
   const KO_LITERAL_WIDE_FOOT_RE = /^(?:어서(?:인지)?|으니|은데)\s+[^.!?。！？\n]{0,28}(?:신발|구두|운동화)[^.!?。！？\n]{0,14}(?:신|맞|골|사)/;
 
+  const YI_JIU_BEFORE = /[第唯统統万萬同单單专專逐始一二三四五六七八九十百千几幾每某哪这這那任统合]/u;
+  const YI_JIU_AFTER = /[个個种種点點轮輪句些样樣次天年岁歲分位只隻条條件本张張把段直起共切般定旦方面边邊生辈輩会會口份场場届屆部篇首家间間座台架对對双雙群批套片顿頓声聲步号號遍回趟周週月秒刻层層手块塊杯碗瓶眼脚腳头頭半二两兩三四五六七八九十百千万萬亿億0-9０-９]/u;
   const matchCjk = (text, idx, allowBundles = true) => {
     const out = [];
     if (!text || !idx) return out;
@@ -1059,6 +1061,12 @@
             matched.anchorRanges[matched.anchorRanges.length - 1][1] = newEnd;
           }
         }
+      }
+      // 一…就 "as soon as": 一 must start the frame and take a verb ("一看就懂", "一到家就"), not a measure word,
+      // number or word containing 一 ("一种", "第一点", "唯一能"), and the gap must be a short clause without spaces.
+      if (matched && matched.c.segments && matched.c.segments[0] === '一' && /^[就便]$/.test(matched.c.segments[matched.c.segments.length - 1])) {
+        const ar = matched.anchorRanges, gap = text.slice(ar[0][1], ar[ar.length - 1][0]);
+        if (YI_JIU_BEFORE.test(text[i - 1] || '') || YI_JIU_AFTER.test(text[i + 1] || '') || gap.length > 4 || /[\s　]/.test(gap)) matched = null;
       }
       if (matched) {
         const { c, surface, end, anchorRanges } = matched;
