@@ -499,7 +499,7 @@
       $('btnWakeCompanion').onclick = async () => {
         const stEl = $('companionWakeStatus');
         if (stEl) stEl.textContent = 'Waking companion host…';
-        const r = await sendBg({ op: 'wakeCompanion', url: curSet.companionUrl || undefined });
+        const r = await sendBg({ op: 'wakeCompanion', url: curSet.companionUrl || undefined, force: true });
         if (stEl) {
           stEl.textContent = r && r.ok
             ? (r.alreadyRunning ? 'Companion already online on :8787.' : 'Companion started silently in background!')

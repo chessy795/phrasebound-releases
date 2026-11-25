@@ -1939,6 +1939,15 @@ chrome.runtime.onMessage.addListener((m, s, send) => {
   }
   if (m.op === 'wakeCompanion') {
     if (m.url) companionUrl = m.url.replace(/\/+$/, '');
+    // Only an explicit wake button (force) starts it; automatic wakes respect "AI off" and "Auto-start companion: off".
+    if (isLocalCompanion() && !m.force && (companionOff || !autoStartCompanionEnabled)) {
+      callCompanion('/health', null, 'GET', 1200).then((r) => send(r && r.ok ? { ok: true, alreadyRunning: true, health: r } : { ok: false, off: companionOff, skipped: true, error: companionOff ? 'Local AI is off' : 'Auto-start is off' }));
+      return true;
+    }
+    if (m.force && companionOff) {
+      companionOff = false;
+      chrome.storage.local.get(['ss_set'], (r) => chrome.storage.local.set({ ss_set: Object.assign({}, (r && r.ss_set) || {}, { companionOff: false }) }));
+    }
     callCompanion('/health', null, 'GET', 1200).then(async (r) => {
       if (r && r.ok) { send({ ok: true, alreadyRunning: true, health: r }); return; }
       const woke = await ensureCompanionRunning(true);

@@ -4939,7 +4939,7 @@
     const wakeOrCheck = async () => {
       if (online) { checkCompanionLive(); return; }
       toast('Waking Local Companion…');
-      const r = await bg({ op: 'wakeCompanion' });
+      const r = await bg({ op: 'wakeCompanion', force: true });
       await checkCompanionLive();
       if (!(r && r.ok)) toast('Skip Companion: enable Chrome AI / Web MT in Options, drop .srt, or run install_autostart.bat once');
     };

@@ -2448,7 +2448,7 @@
         btnWake.disabled = true;
         btnWake.textContent = 'Waking Companion…';
         btnWake.setAttribute('aria-busy', 'true');
-        const result = await sendBgMessage({ op: 'wakeCompanion', url: cfg.companionUrl }, 20000);
+        const result = await sendBgMessage({ op: 'wakeCompanion', url: cfg.companionUrl, force: true }, 20000);
         btnWake.disabled = false;
         btnWake.removeAttribute('aria-busy');
         if (result?.health) {
