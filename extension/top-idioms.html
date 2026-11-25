@@ -10,7 +10,10 @@
 <body>
   <main class="ti">
     <h1>Most-heard idioms</h1>
-    <label class="ti-lang">Language <select id="lang"></select></label>
+    <div class="ti-controls">
+      <label class="ti-lang">Language <select id="lang"></select></label>
+      <label class="ti-filter" id="playWrap" hidden><input type="checkbox" id="playOnly"> <span id="playLbl">Playful only</span></label>
+    </div>
     <p id="stat" class="ti-stat"></p>
     <p class="ti-note">Ranked by how often each expression is said in YouTube videos (auto-captions, counted per million <span id="unit">words</span>). Films and TV are shown for comparison. Counts include some literal uses.</p>
     <ol id="list" class="ti-list"></ol>

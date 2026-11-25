@@ -195,7 +195,7 @@
   const fillSpokenRates = async (slot, fe) => {
     try {
       const lang = normLangCode((V && V.lang) || '');
-      if (!lang || lang === 'tl') return;
+      if (!lang) return;
       const d = await loadData(`spoken_${lang}.json`);
       if (!d || !d.r) return;
       const keys = [fe.display, fe.pattern, fe.surface].filter(Boolean);
@@ -208,7 +208,7 @@
       const fmt = (x) => (x >= 10 ? Math.round(x) : x >= 1 ? x.toFixed(1) : x > 0 ? x.toFixed(2) : '0');
       const top = r.indexOf(Math.max(...r));
       const others = r.filter((_, i) => i !== top);
-      const lead = r[top] > 0 && others.every((x) => r[top] >= 2 * x) ? ` · mostly in ${names[top]}` : '';
+      const lead = r[top] > 0 && others.length && others.every((x) => r[top] >= 2 * x) ? ` · mostly in ${names[top]}` : '';
       slot.textContent = '';
       slot.append(h('b', {}, `Heard per million ${unit}: `),
         `${r.map((x, i) => `${short[i]} ${fmt(x)}`).join(' · ')}${lead}`);
@@ -2305,6 +2305,7 @@
     const contrastBox = (pieInfo && (pieInfo.literal_gloss || pieInfo.idiomatic_gloss || pieInfo.explain)) || offlineLit || offlineGloss || offlineFalseFriend || eqBox
       ? h('div', { class: 'ss-contrast' },
           h('div', {}, h('b', {}, pieInfo && pieInfo.usage === 'literal' ? 'Literal in this scene' : (offlineNative || 'Formulaic expression')),
+            feMeta && feMeta.play ? h('span', { class: 'ss-tag-pill ss-tag-play' }, (SS_IDIOMS && SS_IDIOMS.resolveNativeLabel) ? SS_IDIOMS.resolveNativeLabel('play', 'play', V.lang, '', true) : 'playful') : null,
             feMeta && feMeta.register ? h('span', { class: 'ss-tag-pill ss-tag-slang' }, feMeta.register) : null),
           pieInfo && pieInfo.explain ? h('div', { style: { marginTop: '2px' } }, pieInfo.explain) : null,
           (pieInfo && pieInfo.literal_gloss) || offlineLit ? h('div', { style: { fontSize: '11.5px', opacity: '.82' } }, `Literal: ${(pieInfo && pieInfo.literal_gloss) || offlineLit}`) : null,
@@ -5568,13 +5569,17 @@
     // 1. Multi-layer Formulaic Expressions (Idioms/Proverbs · Frames/Patterns · Slang/Social · Collocations + Cross-Lingual eq)
     const allItems = an.allFEs || an.targetFEs || [];
     const bucketOf = (fe) => fe.bucket || (SS_IDIOMS.classifyLayer ? SS_IDIOMS.classifyLayer(fe.layer, fe.type) : 'idiom');
-    const counts = { all: allItems.length, idiom: 0, frame: 0, slang: 0, colloc: 0 };
-    for (const fe of allItems) counts[bucketOf(fe)] = (counts[bucketOf(fe)] || 0) + 1;
+    const counts = { all: allItems.length, idiom: 0, frame: 0, slang: 0, colloc: 0, play: 0 };
+    for (const fe of allItems) {
+      counts[bucketOf(fe)] = (counts[bucketOf(fe)] || 0) + 1;
+      if (fe.play) counts.play++;
+    }
     if (feLayerFilter !== 'all' && !counts[feLayerFilter]) feLayerFilter = 'all';
 
     const fq = feSearchQuery.trim().toLowerCase();
     const filteredFEs = allItems.filter((fe) => {
-      if (feLayerFilter !== 'all' && bucketOf(fe) !== feLayerFilter) return false;
+      if (feLayerFilter === 'play') { if (!fe.play) return false; }
+      else if (feLayerFilter !== 'all' && bucketOf(fe) !== feLayerFilter) return false;
       if (!fq) return true;
       const m = bestFeMeaning(fe).toLowerCase();
       return (fe.display || '').toLowerCase().includes(fq)
@@ -5582,7 +5587,7 @@
         || m.includes(fq);
     });
 
-    const bucketLabels = { idiom: 'Idiom', frame: 'Frame', slang: 'Slang/Social', colloc: 'Collocation' };
+    const bucketLabels = { idiom: 'Idiom', frame: 'Frame', slang: 'Slang/Social', colloc: 'Collocation', play: 'Playful' };
     appendClean(listEl, h('div', { class: 'ss-card' },
       h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } },
         h('h5', { style: { margin: 0 } }, `Formulaic expressions in this video (${allItems.length})`),
@@ -5592,7 +5597,7 @@
           onclick: () => { S.set.hideBundleUnderlines = !S.set.hideBundleUnderlines; save('set'); applyVisualPrefs(); drawList(); },
         }, S.set.hideBundleUnderlines ? 'Video: Idioms only' : 'Video: All layers')),
       allItems.length > 0 ? h('div', { class: 'ss-layer-bar' },
-        ...[['all', 'All'], ['idiom', 'Idioms'], ['frame', 'Frames'], ['slang', 'Slang & Social'], ['colloc', 'Collocations']]
+        ...[['all', 'All'], ['idiom', 'Idioms'], ['frame', 'Frames'], ['slang', 'Slang & Social'], ['colloc', 'Collocations'], ['play', 'Playful']]
           .filter(([k]) => k === 'all' || counts[k] > 0)
           .map(([k, lbl]) => h('button', {
             class: 'ss-layer-pill' + (feLayerFilter === k ? ' ss-act' : ''),
@@ -5615,7 +5620,7 @@
         const bkt = bucketOf(fe);
         const isLitRisk = !isLit && !isTrap && !!fe.litRisk;
         const tagLabel = isLit ? 'Literal here' : isTrap ? '⚠️ Trap' : (fe.native || bucketLabels[bkt] || fe.type) + (isLitRisk ? ' · often literal' : '');
-        const tagCls = isTrap ? 'ss-tag-trap' : (isLitRisk ? 'ss-tag-litrisk' : `ss-tag-${bkt}`);
+        const tagCls = isTrap ? 'ss-tag-trap' : (isLitRisk ? 'ss-tag-litrisk' : (fe.play ? 'ss-tag-play' : `ss-tag-${bkt}`));
         const isEn = normLangCode(V.lang) === 'en';
         const dictHref = isEn
           ? `https://idioms.thefreedictionary.com/${encodeURIComponent(fe.display.replace(/\s+/g, '+'))}`

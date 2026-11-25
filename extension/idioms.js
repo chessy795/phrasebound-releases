@@ -208,25 +208,26 @@
 
   // Full 12-language x 9-layer native phraseological terminology (熟语 / 熟語 / 숙어 / fraseología / Phraseologismen / фразеологизмы / sawikain)
   const NATIVE_LABELS = {
-    zh:  { classical: '成语', proverb: '谚语 / 俗语', idiom: '惯用语', riddle: '歇后语', slang: '流行语', social: '客套话', frame: '句式', colloc: '搭配' },
-    yue: { classical: '成語', proverb: '俗語 / 諺語', idiom: '慣用語', riddle: '歇後語', slang: '俚語 / 潮語', social: '客套話', frame: '句式', colloc: '搭配' },
-    ja:  { classical: '四字熟語 / 故事成語', proverb: 'ことわざ', idiom: '慣用句', slang: '若者言葉', social: '決まり文句 / 挨拶', frame: '文型', colloc: '連語' },
-    ko:  { classical: '사자성어 / 고사성어', proverb: '속담', idiom: '관용구', slang: '신조어', social: '인사말', frame: '문형', colloc: '연어' },
-    en:  { classical: 'classical allusion', proverb: 'proverb', idiom: 'idiom', riddle: 'Wellerism', phrasal: 'phrasal verb', slang: 'slang', social: 'social formula', frame: 'sentence frame', colloc: 'collocation' },
-    es:  { classical: 'latinismo', proverb: 'refrán', idiom: 'modismo / locución', slang: 'jerga juvenil', social: 'fórmula de cortesía', frame: 'estructura', colloc: 'colocación' },
-    fr:  { classical: 'locution latine', proverb: 'proverbe / dicton', idiom: 'expression idiomatique', slang: 'argot / verlan', social: 'formule de politesse', frame: 'tournure', colloc: 'collocation' },
-    de:  { classical: 'geflügelte Worte', proverb: 'Sprichwort', idiom: 'Redewendung', riddle: 'Sagwort', phrasal: 'trennbares Verb', slang: 'Jugendsprache', social: 'Höflichkeitsformel', frame: 'Satzmuster', colloc: 'Kollokation' },
-    pt:  { classical: 'latinismo', proverb: 'provérbio / ditado', idiom: 'expressão idiomática', slang: 'gíria', social: 'fórmula de cortesia', frame: 'estrutura', colloc: 'colocação' },
-    it:  { classical: 'locuzione latina', proverb: 'proverbio', idiom: 'modo di dire', slang: 'gergo giovanile', social: 'formula di cortesia', frame: 'costrutto', colloc: 'collocazione' },
-    ru:  { classical: 'крылатые выражения', proverb: 'пословица / поговорка', idiom: 'фразеологизм', slang: 'сленг', social: 'речевой этикет', frame: 'конструкция', colloc: 'словосочетание' },
-    tl:  { proverb: 'salawikain', idiom: 'sawikain / idyoma', slang: 'balbal', social: 'magalang na pananalita', frame: 'balangkas', colloc: 'kolokasyon' },
+    zh:  { classical: '成语', proverb: '谚语 / 俗语', idiom: '惯用语', riddle: '歇后语', slang: '流行语', social: '客套话', frame: '句式', colloc: '搭配', playful: '俏皮话 / 顺口溜' },
+    yue: { classical: '成語', proverb: '俗語 / 諺語', idiom: '慣用語', riddle: '歇後語', slang: '俚語 / 潮語', social: '客套話', frame: '句式', colloc: '搭配', playful: '鬼馬 / 歇後語' },
+    ja:  { classical: '四字熟語 / 故事成語', proverb: 'ことわざ', idiom: '慣用句', slang: '若者言葉', social: '決まり文句 / 挨拶', frame: '文型', colloc: '連語', playful: '言葉遊び' },
+    ko:  { classical: '사자성어 / 고사성어', proverb: '속담', idiom: '관용구', slang: '신조어', social: '인사말', frame: '문형', colloc: '연어', playful: '말장난' },
+    en:  { classical: 'classical allusion', proverb: 'proverb', idiom: 'idiom', riddle: 'Wellerism', phrasal: 'phrasal verb', slang: 'slang', social: 'social formula', frame: 'sentence frame', colloc: 'collocation', playful: 'playful' },
+    es:  { classical: 'latinismo', proverb: 'refrán', idiom: 'modismo / locución', slang: 'jerga juvenil', social: 'fórmula de cortesía', frame: 'estructura', colloc: 'colocación', playful: 'expresión juguetona' },
+    fr:  { classical: 'locution latine', proverb: 'proverbe / dicton', idiom: 'expression idiomatique', slang: 'argot / verlan', social: 'formule de politesse', frame: 'tournure', colloc: 'collocation', playful: 'jeu de mots' },
+    de:  { classical: 'geflügelte Worte', proverb: 'Sprichwort', idiom: 'Redewendung', riddle: 'Sagwort', phrasal: 'trennbares Verb', slang: 'Jugendsprache', social: 'Höflichkeitsformel', frame: 'Satzmuster', colloc: 'Kollokation', playful: 'Wortspiel' },
+    pt:  { classical: 'latinismo', proverb: 'provérbio / ditado', idiom: 'expressão idiomática', slang: 'gíria', social: 'fórmula de cortesia', frame: 'estrutura', colloc: 'colocação', playful: 'expressão divertida' },
+    it:  { classical: 'locuzione latina', proverb: 'proverbio', idiom: 'modo di dire', slang: 'gergo giovanile', social: 'formula di cortesia', frame: 'costrutto', colloc: 'collocazione', playful: 'gioco di parole' },
+    ru:  { classical: 'крылатые выражения', proverb: 'пословица / поговорка', idiom: 'фразеологизм', slang: 'сленг', social: 'речевой этикет', frame: 'конструкция', colloc: 'словосочетание', playful: 'игра слов' },
+    tl:  { proverb: 'salawikain', idiom: 'sawikain / idyoma', slang: 'balbal', social: 'magalang na pananalita', frame: 'balangkas', colloc: 'kolokasyon', playful: 'mapaglarong kasabihan' },
   };
 
-  const resolveNativeLabel = (layer, type, langCode, explicitNative = '') => {
-    if (explicitNative) return explicitNative;
+  const resolveNativeLabel = (layer, type, langCode, explicitNative = '', isPlay = false) => {
     const lg = normLang(langCode || 'en');
     const tbl = NATIVE_LABELS[lg] || NATIVE_LABELS.en;
     const s = `${layer || ''} ${type || ''}`.toLowerCase();
+    if (isPlay || /\bplay(?:ful)?\b/.test(s)) return tbl.playful || 'playful';
+    if (explicitNative) return explicitNative;
     if (/classical|allusion|chengyu|yojijukugo|sajaseongeo|winged|latinism|成语|成語|四字熟語|故事成語|사자성어|고사성어|крылат|geflügelt/.test(s)) return tbl.classical || tbl.idiom || '';
     if (/riddle|xiehouyu|wellerism|sagwort|歇后语|歇後語/.test(s)) return tbl.riddle || tbl.proverb || '';
     if (/proverb|saying|refrán|sprichwort|ditado|пословиц|поговорк|salawikain|谚语|諺語|ことわざ|속담/.test(s)) return tbl.proverb || '';
@@ -598,12 +599,13 @@
         bucket,
         eq: ex.eq || null,
         lit: ex.lit || '',
-        native: resolveNativeLabel(layer, type, langCode, ex.native),
+        native: resolveNativeLabel(layer, type, langCode, ex.native, Boolean(ex.play)),
         reading,
         gloss: glossEn,
         glossZh,
         glossMap: ex.gloss && typeof ex.gloss === 'object' ? ex.gloss : null,
         litRisk: Boolean(ex.lit_risk),
+        play: Boolean(ex.play),
         senses: Array.isArray(ex.senses) ? ex.senses : null,
         idiomPrior,
         opacity,
@@ -658,12 +660,13 @@
           bucket: classifyLayer(ex.layer, tp),
           eq: ex.eq || null,
           lit: ex.lit || '',
-          native: resolveNativeLabel(ex.layer || 'idiom', tp || 'phrasal', 'de', ex.native),
+          native: resolveNativeLabel(ex.layer || 'idiom', tp || 'phrasal', 'de', ex.native, Boolean(ex.play)),
           reading: isU8 ? (row[3] || '') : '',
           gloss: isU8 ? (row[4] || '') : (ex.gloss || ''),
           glossZh: isU8 ? (row[5] || '') : '',
           glossMap: ex.gloss && typeof ex.gloss === 'object' ? ex.gloss : null,
           litRisk: Boolean(ex.lit_risk),
+          play: Boolean(ex.play),
           idiomPrior: typeof ex.idiom_prior === 'number' ? ex.idiom_prior : null,
           opacity: typeof ex.opacity === 'number' ? ex.opacity : 0,
           priority: pri,
@@ -743,6 +746,10 @@
             if (!prev.glossMap && ex2.gloss && typeof ex2.gloss === 'object') prev.glossMap = ex2.gloss;
             if (!prev.falseFriend && (ex2.false_friend || ex2.zh_diff)) prev.falseFriend = ex2.false_friend || ex2.zh_diff;
             if (!prev.litRisk && ex2.lit_risk) prev.litRisk = true;
+            if (!prev.play && ex2.play) {
+              prev.play = true;
+              prev.native = resolveNativeLabel(prev.layer, prev.type, fjLang || (isYueEntry ? 'yue' : 'zh'), '', true);
+            }
           }
           continue;
         }
@@ -763,7 +770,7 @@
           type,
           layer,
           bucket,
-          native: resolveNativeLabel(layer, type, fjLang || (isYueEntry ? 'yue' : 'zh'), ex.native),
+          native: resolveNativeLabel(layer, type, fjLang || (isYueEntry ? 'yue' : 'zh'), ex.native, Boolean(ex.play)),
           lit: ex.lit || '',
           eq: ex.eq || null,
           hanja,
@@ -771,6 +778,7 @@
           defKo: ex.def_ko || '',
           glossMap: ex.gloss && typeof ex.gloss === 'object' ? ex.gloss : null,
           litRisk: Boolean(ex.lit_risk),
+          play: Boolean(ex.play),
           register: ex.register || '',
           standalone: Boolean(ex.standalone),
           falseFriend: ex.false_friend || ex.zh_diff || '',
@@ -1037,6 +1045,7 @@
           defKo: c.defKo,
           glossMap: c.glossMap || null,
           litRisk: Boolean(c.litRisk),
+          play: Boolean(c.play),
           register: c.register,
           falseFriend: c.falseFriend,
           isBundle: c.isBundle,
@@ -1436,6 +1445,7 @@
           glossZh: cand.glossZh || '',
           glossMap: cand.glossMap || null,
           litRisk: instLitRisk,
+          play: Boolean(cand.play),
           senses: cand.senses || null,
           idiomPrior: cand.idiomPrior,
           opacity: cand.opacity || 0,
@@ -1894,6 +1904,7 @@
             defKo: m.defKo || '',
             glossMap: m.glossMap || null,
             litRisk: Boolean(m.litRisk),
+            play: Boolean(m.play),
             senses: m.senses || null,
             idiomPrior: m.idiomPrior != null ? m.idiomPrior : null,
             opacity: m.opacity || 0,
@@ -2342,6 +2353,7 @@
           type: h.type || '',
           native: h.native || '',
           litRisk: Boolean(h.litRisk),
+          play: Boolean(h.play),
           gloss: resolveFeGloss(h, uiLang, { sidecar }).text || h.gloss || h.glossZh || '',
         };
       });
@@ -2370,6 +2382,7 @@
         type: m.type || '',
         native: m.native || '',
         litRisk: Boolean(m.litRisk),
+        play: Boolean(m.play),
         gloss: resolveFeGloss(m, uiLang, { sidecar, enGlossMap: idx._enGloss || null }).text || m.gloss || '',
       };
     });

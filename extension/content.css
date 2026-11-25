@@ -389,6 +389,7 @@ html:fullscreen #ss-panel.ss-docked-stage {
 .ss-tag-pill.ss-tag-frame { color: #a5b4fc; border-color: rgba(129, 140, 248, .4); }
 .ss-tag-pill.ss-tag-slang { color: #eab308; border-color: rgba(234, 179, 8, .38); }
 .ss-tag-pill.ss-tag-colloc { color: #7dd3fc; border-color: rgba(56, 189, 248, .35); }
+.ss-tag-pill.ss-tag-play { color: #f0abfc; border-color: rgba(232, 121, 249, .45); }
 .ss-tag-pill.ss-tag-trap { color: #e07b39; border-color: rgba(224, 123, 57, .48); }
 
 .ss-eq-row {
