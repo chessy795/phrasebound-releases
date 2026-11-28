@@ -3463,7 +3463,9 @@ except Exception as _v090_err:
 
 if __name__ == '__main__':
     print(f'Subtitle Study Companion v0.3.0 starting on http://127.0.0.1:{PORT}')
-    if os.environ.get('YT_STUDY_MT_PRELOAD', '1') != '0':
+    # Off by default: the translator loads on the first local translation request and unloads after idle,
+    # so a running companion does not hold the GPU for users who translate through Google/Microsoft.
+    if os.environ.get('YT_STUDY_MT_PRELOAD', '0') == '1':
         def _warm_mt():
             try:
                 with mt_session(DEFAULT_MT_MODEL):

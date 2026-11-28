@@ -1,0 +1,191 @@
+{
+  "version": 1,
+  "languages": [
+    {
+      "lang": "zh",
+      "name": "Mandarin",
+      "corpus_total": 7678,
+      "shipped": 7272,
+      "speech_hits": 448,
+      "size_kb": 1154.5,
+      "top_line": "临时抱佛脚",
+      "top_author": "佚名",
+      "top_work": "上集",
+      "top_partner": "平时不烧香",
+      "licences": [
+        "CC BY-SA 4.0",
+        "MIT"
+      ]
+    },
+    {
+      "lang": "yue",
+      "name": "Cantonese",
+      "corpus_total": 7604,
+      "shipped": 7210,
+      "speech_hits": 91,
+      "size_kb": 1142.7,
+      "top_line": "夕陽無限好",
+      "top_author": "李商隱",
+      "top_work": "登樂遊原",
+      "top_partner": "只是近黃昏",
+      "licences": [
+        "CC BY-SA 4.0",
+        "MIT"
+      ]
+    },
+    {
+      "lang": "en",
+      "name": "English",
+      "corpus_total": 9919,
+      "shipped": 8216,
+      "speech_hits": 290,
+      "size_kb": 1787.7,
+      "top_line": "The land of the living",
+      "top_author": "The Bible",
+      "top_work": "Job xxviii. 13",
+      "top_partner": "",
+      "licences": [
+        "CC BY-SA 4.0",
+        "public domain"
+      ]
+    },
+    {
+      "lang": "ja",
+      "name": "Japanese",
+      "corpus_total": 13048,
+      "shipped": 12817,
+      "speech_hits": 65,
+      "size_kb": 2818.9,
+      "top_line": "飛ぶ鳥を落とす勢い",
+      "top_author": "",
+      "top_work": "日本の諺",
+      "top_partner": "",
+      "licences": [
+        "CC BY-SA 4.0"
+      ]
+    },
+    {
+      "lang": "ko",
+      "name": "Korean",
+      "corpus_total": 4739,
+      "shipped": 4575,
+      "speech_hits": 8,
+      "size_kb": 827.8,
+      "top_line": "나 보기가 역겨워",
+      "top_author": "김소월",
+      "top_work": "작품",
+      "top_partner": "",
+      "licences": [
+        "CC BY-SA 4.0"
+      ]
+    },
+    {
+      "lang": "es",
+      "name": "Spanish",
+      "corpus_total": 13329,
+      "shipped": 13094,
+      "speech_hits": 142,
+      "size_kb": 2539.0,
+      "top_line": "La historia se repite",
+      "top_author": "",
+      "top_work": "Spanish proverbs",
+      "top_partner": "",
+      "licences": [
+        "CC BY-SA 4.0"
+      ]
+    },
+    {
+      "lang": "fr",
+      "name": "French",
+      "corpus_total": 13903,
+      "shipped": 13578,
+      "speech_hits": 140,
+      "size_kb": 3165.0,
+      "top_line": "Revenons à nos moutons",
+      "top_author": "",
+      "top_work": "French proverbs",
+      "top_partner": "",
+      "licences": [
+        "CC BY-SA 4.0",
+        "public domain"
+      ]
+    },
+    {
+      "lang": "de",
+      "name": "German",
+      "corpus_total": 3859,
+      "shipped": 3116,
+      "speech_hits": 206,
+      "size_kb": 576.5,
+      "top_line": "Lange Rede, kurzer Sinn",
+      "top_author": "",
+      "top_work": "Deutsche Sprichwörter",
+      "top_partner": "",
+      "licences": [
+        "CC BY-SA 4.0",
+        "public domain"
+      ]
+    },
+    {
+      "lang": "it",
+      "name": "Italian",
+      "corpus_total": 4729,
+      "shipped": 3793,
+      "speech_hits": 92,
+      "size_kb": 674.7,
+      "top_line": "Chi più ne ha più ne metta",
+      "top_author": "",
+      "top_work": "Proverbi italiani",
+      "top_partner": "",
+      "licences": [
+        "CC BY-SA 4.0",
+        "public domain"
+      ]
+    },
+    {
+      "lang": "pt",
+      "name": "Portuguese",
+      "corpus_total": 2432,
+      "shipped": 2378,
+      "speech_hits": 99,
+      "size_kb": 441.5,
+      "top_line": "Olho por olho, dente por dente",
+      "top_author": "Provérbios em Português",
+      "top_work": "O",
+      "top_partner": "",
+      "licences": [
+        "CC BY-SA 4.0"
+      ]
+    },
+    {
+      "lang": "ru",
+      "name": "Russian",
+      "corpus_total": 5100,
+      "shipped": 4928,
+      "speech_hits": 149,
+      "size_kb": 1337.5,
+      "top_line": "Свято место пусто не бывает",
+      "top_author": "",
+      "top_work": "Russian proverbs",
+      "top_partner": "",
+      "licences": [
+        "CC BY-SA 4.0"
+      ]
+    },
+    {
+      "lang": "tl",
+      "name": "Filipino",
+      "corpus_total": 2840,
+      "shipped": 2837,
+      "speech_hits": 1,
+      "size_kb": 562.2,
+      "top_line": "Habang may buhay, may pag-asa",
+      "top_author": "",
+      "top_work": "Filipino proverbs",
+      "top_partner": "",
+      "licences": [
+        "CC BY-SA 4.0"
+      ]
+    }
+  ]
+}

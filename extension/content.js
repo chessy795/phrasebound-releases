@@ -93,7 +93,7 @@
     },
     controlsTarget: () => {
       const pc = DEFAULT_YT_SITE.container();
-      return pc && pc.querySelector ? pc.querySelector('.ytp-right-controls') : null;
+      return pc && pc.querySelector ? (pc.querySelector('.ytp-left-controls') || pc.querySelector('.ytp-right-controls')) : null;
     },
     inlineSidebar: () => document.querySelector('#secondary-inner') || document.querySelector('#secondary'),
     rawVideoId: (loc) => {
@@ -164,7 +164,8 @@
     });
 
   const comp = (path, body = null, method = null, timeoutMs = 60000) =>
-    bg({ op: 'companion', path, body, method, timeoutMs, url: S.set.companionUrl });
+    bg({ op: 'companion', path, body, method, timeoutMs, url: S.set.companionUrl })
+      .then((r) => { if (r && r.killed) localAiGone = true; return r; });
 
   // ---- Static bundled data loaders ----
   const dataCache = {};
@@ -191,17 +192,48 @@
     return out;
   };
 
-  // Spoken frequency of an expression in three corpora (ext/data/spoken_<lang>.json, built by _dev/build_spoken_rates.py).
+  // Spoken frequency + learner priority verdict across three corpora (ext/data/spoken_<lang>.json).
+  const _spokenRankCache = {};
+  const spokenRankIndex = (lang, d) => {
+    if (_spokenRankCache[lang]) return _spokenRankCache[lang];
+    const sorted = Object.entries(d.r || {}).filter(([, arr]) => (arr && arr[0] > 0)).sort((a, b) => b[1][0] - a[1][0]);
+    const total = sorted.reduce((s, [, arr]) => s + arr[0], 0);
+    const ranks = new Map();
+    let acc = 0, top80 = 0;
+    sorted.forEach(([exp, arr], idx) => {
+      const k = String(exp || '').toLowerCase();
+      if (!ranks.has(k)) ranks.set(k, idx + 1);
+      if (acc < 0.8 * total) { acc += arr[0]; top80 = idx + 1; }
+    });
+    return (_spokenRankCache[lang] = { ranks, top80, totalCount: sorted.length });
+  };
   const fillSpokenRates = async (slot, fe) => {
     try {
-      const lang = normLangCode((V && V.lang) || '');
+      const lang = fe && fe.codeMix ? 'en' : normLangCode((V && V.lang) || '');
       if (!lang) return;
       const d = await loadData(`spoken_${lang}.json`);
       if (!d || !d.r) return;
       const keys = [fe.display, fe.pattern, fe.surface].filter(Boolean);
-      let r = null;
-      for (const k of keys) { r = d.r[k] || d.r[String(k).toLowerCase()]; if (r) break; }
+      let r = null, matchedKey = '';
+      for (const k of keys) {
+        const hit = d.r[k] || d.r[String(k).toLowerCase()];
+        if (hit) { r = hit; matchedKey = String(k).toLowerCase(); break; }
+      }
       if (!r) return;
+      const idxInfo = spokenRankIndex(lang, d);
+      const ytRank = idxInfo.ranks.get(matchedKey) || 0;
+      let verdict = null;
+      if (ytRank > 0 && ytRank <= 200) {
+        verdict = { cls: 'ss-v-core', text: `Core spoken · Top #${ytRank} on YouTube — worth learning now` };
+      } else if (ytRank > 0 && idxInfo.top80 > 0 && ytRank <= idxInfo.top80) {
+        verdict = { cls: 'ss-v-core', text: `Core spoken · inside YouTube 80% core (#${ytRank})` };
+      } else if (r[0] >= 2.0) {
+        verdict = { cls: 'ss-v-mid', text: `Common in spoken YouTube${ytRank ? ` (#${ytRank})` : ''}` };
+      } else if (r[1] >= 1.0 && r[1] >= 2 * r[0]) {
+        verdict = { cls: 'ss-v-script', text: 'Mostly scripted / film dialogue — recognize, low speaking priority' };
+      } else if (Math.max(...r) < 0.5) {
+        verdict = { cls: 'ss-v-rare', text: 'Rare in everyday speech (<0.5/M) — safe to recognize only' };
+      }
       const unit = d.meta && d.meta.unit === 'characters' ? 'characters' : 'words';
       const names = (d.meta && d.meta.names) || ['YouTube talk', 'films and TV', 'TED talks'];
       const short = (d.meta && d.meta.short) || ['YouTube', 'film', 'TED'];
@@ -210,6 +242,7 @@
       const others = r.filter((_, i) => i !== top);
       const lead = r[top] > 0 && others.length && others.every((x) => r[top] >= 2 * x) ? ` · mostly in ${names[top]}` : '';
       slot.textContent = '';
+      if (verdict) slot.append(h('div', { class: `ss-verdict ${verdict.cls}` }, verdict.text));
       slot.append(h('b', {}, `Heard per million ${unit}: `),
         `${r.map((x, i) => `${short[i]} ${fmt(x)}`).join(' · ')}${lead}`);
       slot.title = 'Counted in ' + names.join(', ');
@@ -220,6 +253,7 @@
   // ---- Persistent & session state ----
   let S = { set: {}, words: {}, items: [], xp: 0 };
   let companionHealth = null;
+  let localAiGone = false;   // the background answered "killed": this build has no local AI, so its settings are hidden
   let V = null;
   let run = 0;
   let tab = 'lines';
@@ -234,6 +268,7 @@
   let concordanceRows = [];
   let clipStopAt = -1;
   let fitCardOpen = false;
+  let asrMoreOpen = false;
   let fitWhyOpen = false;
   let feLayerFilter = 'all';
   let feSearchQuery = '';
@@ -403,7 +438,7 @@
     ['it', 'Italiano (it)'],
     ['ru', 'Русский (ru)'],
     ['tl', 'Tagalog / Filipino (tl)'],
-  ];
+  ].concat((globalThis.SS_WEB_TARGETS || []).map(([code, name]) => [code, `${name} (${code})`]));
   const SHORT_LANG_LABELS = {
     en: 'EN', 'zh-hant': '繁中', 'zh-tw': '繁中', 'zh-hk': '繁中',
     'zh-hans': '简中', 'zh-cn': '简中', zh: '中文', yue: '粵語',
@@ -490,6 +525,7 @@
     S.set.lang = String(val || '').split('|')[0];
     save('set');
     closeLangPopover();
+    lyricsDeclined = curVidKey(); // choosing a caption track by hand means: not the lyrics
     load();
   };
   const setTargetLang = (val) => {
@@ -499,7 +535,10 @@
     save('set', true);
     updatePlayerLangPill();
     if (langPopOpen) renderLangPopover();
-    load();
+    // Keep the external lyrics when only the translation language changes.
+    const keepLyrics = !!(V && V.srcProv === 'External lyrics');
+    const loading = load();
+    if (keepLyrics) Promise.resolve(loading).then(() => { if (V && V.srcProv !== 'External lyrics') applyExternalLyrics(true); }, () => {});
   };
   const toggleTranslationOnOff = () => {
     if (S.set.tl) {
@@ -548,6 +587,26 @@
         onclick: () => { setTargetLang(c); closeLangPopover(); },
       }, shortLangLabel(c))));
 
+    const stepSlider = (label, min, max, step, val, fmtVal, onInputVal, onCommitVal) => {
+      const readout = h('span', { class: 'ss-lp-sval' }, fmtVal(val));
+      const range = h('input', {
+        type: 'range', min: String(min), max: String(max), step: String(step), value: String(val),
+        'aria-label': 'Subtitle ' + label,
+        oninput: (e) => {
+          const n = parseFloat(e.target.value);
+          readout.textContent = fmtVal(n);
+          onInputVal(n);
+        },
+        onchange: (e) => { onCommitVal(parseFloat(e.target.value)); },
+      });
+      return h('div', { class: 'ss-lp-srow' },
+        h('span', {}, label),
+        range,
+        readout);
+    };
+    const scaleVal = Math.max(0.7, Math.min(1.5, Number(S.set.overlayScale || 1)));
+    const heightVal = Math.max(2, Math.min(34, Number(captionBottom())));
+
     langPopEl = h('div', {
       id: 'ss-lang-pop',
       class: S.set.darkTheme === false ? 'ss-theme-light' : '',
@@ -567,8 +626,57 @@
         buildGroupedTlSelect(S.set.tl || '', (val) => { setTargetLang(val); closeLangPopover(); }, { offLabel: 'Translate: Off', ariaLabel: 'Translate subtitles to' })),
       h('div', { class: 'ss-lp-sec' },
         h('div', { class: 'ss-lp-lbl' }, '3rd language (optional)'),
-        buildGroupedTlSelect(S.set.tl2 || '', (val) => { S.set.tl2 = val; save('set'); closeLangPopover(); load(); }, { offLabel: 'None', ariaLabel: 'Third subtitle language' })));
+        buildGroupedTlSelect(S.set.tl2 || '', (val) => { S.set.tl2 = val; save('set'); closeLangPopover(); load(); }, { offLabel: 'None', ariaLabel: 'Third subtitle language' })),
+      h('div', { class: 'ss-lp-sec' },
+        h('div', { class: 'ss-lp-lbl' }, 'Subtitle size & height on video'),
+        h('div', { class: 'ss-lp-sliders' },
+          stepSlider('Size', 0.7, 1.5, 0.05, scaleVal, (n) => Math.round(n * 100) + '%',
+            (n) => { S.set.overlayScale = n; applyVisualPrefs(); },
+            (n) => { S.set.overlayScale = n; save('set'); applyVisualPrefs(); }),
+          stepSlider('Height', 2, 34, 1, heightVal, (n) => Math.round(n) + '%',
+            (n) => { S.set.subtitleBottomPct = n; applyVisualPrefs(); },
+            (n) => { S.set.subtitleBottomPct = n; save('set'); applyVisualPrefs(); }),
+          h('button', {
+            type: 'button',
+            class: 'ss-lp-reset',
+            onclick: () => {
+              S.set.overlayScale = 1;
+              S.set.subtitleBottomPct = 5;
+              save('set');
+              applyVisualPrefs();
+              renderLangPopover();
+            },
+          }, 'Reset size & height'))));
     host.append(langPopEl);
+    placeLangPopover();
+  };
+  // The menu used to sit in the bottom-right corner of the window, where the side panel covers it.
+  const placeLangPopover = () => {
+    if (!langPopEl || !langPopEl.style || !ytpLangBtn || typeof ytpLangBtn.getBoundingClientRect !== 'function') return;
+    const b = ytpLangBtn.getBoundingClientRect();
+    if (!b || !b.width) return;
+    const pc = playerContainer();
+    const p = pc && typeof pc.getBoundingClientRect === 'function' ? pc.getBoundingClientRect() : null;
+    const vw = window.innerWidth || 1280;
+    const vh = window.innerHeight || 720;
+    const w = Math.min(316, vw - 24);
+    const minL = Math.max(8, p && p.width ? p.left + 8 : 8);
+    const maxL = Math.max(minL, Math.min(vw - w - 8, p && p.width ? p.right - w - 8 : vw));
+    langPopEl.style.left = Math.round(Math.max(minL, Math.min(b.left, maxL))) + 'px';
+    langPopEl.style.right = 'auto';
+    langPopEl.style.bottom = Math.round(Math.max(8, vh - b.top + 10)) + 'px';
+    langPopEl.style.maxHeight = Math.round(Math.max(180, b.top - 20)) + 'px';
+    langPopEl.style.overflowY = 'auto';
+    // If the page measures "fixed" from the player and not from the window, correct by the difference.
+    const wantLeft = parseFloat(langPopEl.style.left);
+    const wantBottom = vh - parseFloat(langPopEl.style.bottom);
+    const got = typeof langPopEl.getBoundingClientRect === 'function' ? langPopEl.getBoundingClientRect() : null;
+    if (got && got.width) {
+      const dx = wantLeft - got.left;
+      const dy = wantBottom - got.bottom;
+      if (Math.abs(dx) > 2) langPopEl.style.left = Math.round(wantLeft + dx) + 'px';
+      if (Math.abs(dy) > 2) langPopEl.style.bottom = Math.round(parseFloat(langPopEl.style.bottom) - dy) + 'px';
+    }
   };
 
   const captionBottom = () => S.set.subtitleBottomPct ?? (S.set.overlayBottom === 10 ? 5 : S.set.overlayBottom ?? 5);
@@ -1009,7 +1117,7 @@
     document.documentElement.classList.toggle('ss-on', active);
     document.documentElement.classList.toggle('ss-shorts', active && shorts);
     document.documentElement.classList.toggle('ss-autohide-ytp', active && !!S.set.autoHideYtpBar);
-    syncNativeCaptions(active && (bm === 'audio' || !!(ov?.isConnected && ov.childElementCount)));
+    syncNativeCaptions(active && (bm === 'audio' || !!(V.lines && V.lines.length) || !!(ov?.isConnected && ov.childElementCount)));
     const fadeKnown = S.set.fadeKnownReadings !== false;
     document.documentElement.classList.toggle('ss-tc', active && !!S.set.toneColors);
     document.documentElement.classList.toggle('ss-gc', active && !!S.set.genderColors);
@@ -1104,7 +1212,12 @@
           'aria-pressed': String(!!S.set.on),
           onclick: onToggleStudy,
         }, captionMark());
-        rc.prepend(ytpBtn);
+        // In YouTube's left group our buttons go after the time, before the chapter title.
+        const chapter = rc.classList && rc.classList.contains('ytp-left-controls')
+          ? rc.querySelector(':scope > .ytp-chapter-container') : null;
+        if (chapter) rc.insertBefore(ytpBtn, chapter);
+        else if (rc.classList && rc.classList.contains('ytp-left-controls')) rc.append(ytpBtn);
+        else rc.prepend(ytpBtn);
       }
       if (!ytpLangBtn || !ytpLangBtn.isConnected || ytpLangBtn.parentElement !== rc) {
         if (ytpLangBtn) ytpLangBtn.remove();
@@ -1534,6 +1647,17 @@
 
   let hoverEl = null, hoverTimer = 0, hoverFor = null;
   const hidePeek = () => { clearTimeout(hoverTimer); hoverFor = null; if (hoverEl) hoverEl.style.display = 'none'; };
+  const EN_FUNCTION_WORDS = new Set(('i me my mine myself you your yours yourself he him his himself she her hers herself it its itself '
+    + 'we us our ours ourselves they them their theirs themselves a an the this that these those am is are was were be been being '
+    + 'do does did have has had will would shall should can could may might must in on at as by for from of to with into onto over '
+    + 'under about after before and or but if so no not than then there here who whom whose which what when where why how all any '
+    + 'some each both either neither').split(' '));
+  const usableDictSources = (sources, word, lang) => {
+    const list = (sources || []).filter(item => item && item.entries?.length);
+    if (normLangCode(lang || 'en') !== 'en' || !EN_FUNCTION_WORDS.has(String(word || '').toLowerCase())) return list;
+    const rest = list.filter(item => !/wordnet/i.test(`${item.id} ${item.name || ''}`));
+    return rest.length ? rest : list;
+  };
   const showPeek = (span, word, lemma, line, feMatch, charPos, reading) => {
     if (S.set.hoverPeek === false || dictOpen) return;
     clearTimeout(hoverTimer);
@@ -1548,7 +1672,8 @@
       const result = await defineAll(tries, true, true);
       if (hoverFor !== span || V !== view || !span.isConnected || dictOpen) return;
       const sources = result?.sources || [];
-      const source = sources.find(item => item.id === S.set.dictSrc && item.entries?.length) || sources.find(item => item.entries?.length);
+      const usable = usableDictSources(sources, word, view.lang);
+      const source = usable.find(item => item.id === S.set.dictSrc) || usable[0];
       const entry = source?.entries[0];
       const payload = cueExplainPayload(word, lemma, line, feMatch);
       const contextual = sceneGlossCache.get(cueExplainCacheKey(payload))?.word_gloss ||
@@ -1581,6 +1706,8 @@
     if (!feMatch) return '';
     const b = feMatch.bucket || (SS_IDIOMS.classifyLayer ? SS_IDIOMS.classifyLayer(feMatch.layer, feMatch.type) : 'idiom');
     const lr = feMatch.litRisk && !feMatch.deceptive ? ' ss-fe-litrisk' : '';
+    if (b === 'quote') return ' ss-fe-quote';
+    if (b === 'codemix') return ' ss-fe-codemix';
     if (b === 'frame') return ' ss-fe-frame' + lr;
     if (b === 'colloc') return ' ss-fe-colloc' + lr;
     return lr;
@@ -2079,14 +2206,36 @@
     const view = V, target = S.set.tl;
     const service = S.set.sceneServices?.subtitle || 'auto';
     if (!view?.allowPreviewTranslation || !target || !['auto', 'free_web'].includes(service) ||
-        (service === 'auto' && companionHealth?.plamo) || !ln?.t || view.previewRequests.has(ln)) return;
-    view.previewRequests.add(ln);
-    const result = await bg({op:'webTranslate', texts:[ln.t], sl:view.lang, tl:target}).catch(() => null);
+        localMtChosen() || !ln?.t || view.previewRequests.has(ln)) return;
+    // Batch the current line + up to 8 upcoming untranslated lines so translations arrive before playback reaches them
+    const startIdx = Math.max(0, typeof i === 'number' && i >= 0 ? i : view.lines.indexOf(ln));
+    const batch = [];
+    for (let k = startIdx; k < view.lines.length && batch.length < 9; k++) {
+      const cand = view.lines[k];
+      if (!cand || cand.isInstrumental || !cand.t || !cand.t.trim()) continue;
+      if (view.previewRequests.has(cand) || view.previewTranslations?.has(cand) || transFor(cand)) continue;
+      view.previewRequests.add(cand);
+      batch.push({ ln: cand, idx: k });
+    }
+    if (!batch.length) return;
+    const result = await bg({ op: 'webTranslate', texts: batch.map((b) => b.ln.t), sl: view.lang, tl: target }).catch(() => null);
     if (V !== view || S.set.tl !== target) return;
-    const translated = result?.ok && result.translations?.[0];
-    if (!translated) { setTimeout(() => view.previewRequests.delete(ln), 10000); return; }
-    view.previewTranslations.set(ln, translated);
-    if (view.cur === i && view.lines[i] === ln) drawLine(i);
+    const trs = result?.ok && Array.isArray(result.translations) ? result.translations : null;
+    if (!trs || !trs.some(Boolean)) {
+      setTimeout(() => { for (const b of batch) view.previewRequests.delete(b.ln); }, 10000);
+      return;
+    }
+    let curUpdated = false;
+    batch.forEach((b, idx) => {
+      const t = trs[idx];
+      if (t) {
+        view.previewTranslations.set(b.ln, t);
+        if (view.cur === b.idx && view.lines[b.idx] === b.ln) curUpdated = true;
+      } else {
+        setTimeout(() => view.previewRequests.delete(b.ln), 10000);
+      }
+    });
+    if (curUpdated) drawLine(view.cur);
   };
   const tr2For = (ln) => (S.set.tl2 && V && V.tr2 ? lookupTrAt(V.tr2, V.tr2Same, ln) : '');
   const aiTransFor = (ln) =>
@@ -2096,87 +2245,173 @@
 
   // ---- Overlay ----
   let revealedIndex = -1;
+  const buildOverlayControlBar = () => {
+    const pctBtn = h('button', {
+      type: 'button',
+      class: 'ss-ov-pct',
+      title: 'Reset subtitle size (100%) and height (5%)',
+      onclick: (e) => {
+        e.stopPropagation();
+        S.set.overlayScale = 1;
+        S.set.subtitleBottomPct = 5;
+        save('set');
+        applyVisualPrefs();
+        pctBtn.textContent = '100%';
+        if (langPopOpen) renderLangPopover();
+        toast('Subtitle size & height reset');
+      },
+    }, Math.round((S.set.overlayScale || 1) * 100) + '%');
+    const nudgeScale = (delta) => {
+      const next = Math.round(Math.max(0.7, Math.min(1.5, (S.set.overlayScale || 1) + delta)) * 100) / 100;
+      S.set.overlayScale = next;
+      save('set');
+      applyVisualPrefs();
+      pctBtn.textContent = Math.round(next * 100) + '%';
+      if (langPopOpen) renderLangPopover();
+    };
+    const dragBtn = h('span', {
+      class: 'ss-ov-drag',
+      title: 'Drag up or down to move subtitle height on the video',
+      onpointerdown: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const host = ov?.parentElement || playerContainer() || document.body;
+        const rect = host?.getBoundingClientRect?.() || { height: window.innerHeight || 600 };
+        const hostH = Math.max(200, rect.height || window.innerHeight || 600);
+        const startY = e.clientY;
+        const startBottom = captionBottom();
+        ov?.classList?.add('ss-ov-dragging');
+        if (typeof dragBtn.setPointerCapture === 'function') {
+          try { dragBtn.setPointerCapture(e.pointerId); } catch (_) {}
+        }
+        const onMove = (ev) => {
+          const dyPct = ((startY - ev.clientY) / hostH) * 100;
+          S.set.subtitleBottomPct = Math.round(Math.max(2, Math.min(34, startBottom + dyPct)));
+          applyVisualPrefs();
+        };
+        const onUp = () => {
+          dragBtn.removeEventListener('pointermove', onMove);
+          dragBtn.removeEventListener('pointerup', onUp);
+          ov?.classList?.remove('ss-ov-dragging');
+          save('set');
+          if (langPopOpen) renderLangPopover();
+        };
+        dragBtn.addEventListener('pointermove', onMove);
+        dragBtn.addEventListener('pointerup', onUp);
+      },
+    }, '↕ Move');
+    return h('div', { class: 'ss-ov-ctrl', onclick: (e) => e.stopPropagation() },
+      dragBtn,
+      h('span', { class: 'ss-ov-sep', 'aria-hidden': 'true' }),
+      h('button', { type: 'button', title: 'Smaller subtitles', onclick: (e) => { e.stopPropagation(); nudgeScale(-0.1); } }, 'A−'),
+      pctBtn,
+      h('button', { type: 'button', title: 'Larger subtitles', onclick: (e) => { e.stopPropagation(); nudgeScale(0.1); } }, 'A+'));
+  };
+
   const drawLine = (i) => {
     hidePeek();
-    if (ov) ov.textContent = '';
     const ln = V?.lines[i];
+    const adPlaying = !!(getActiveSite()?.isAd?.());
     if (!ov || !S.set.on || !ln || ln.isInstrumental || !ln.t.trim()) {
-      syncNativeCaptions(!!(S.set.on && V && getBlurMode() === 'audio'));
+      if (ov) { ov.textContent = ''; ov._renderedCue = null; }
+      syncNativeCaptions(!adPlaying && !!(S.set.on && V && (getBlurMode() === 'audio' || (V.lines && V.lines.length))));
       return;
     }
     const rev = revealedIndex === i;
     const lowConf = ln.conf != null && ln.conf < 0.55;
     const showBadges = !!S.set.showOverlayBadges;
-    const srcTip = V.srcProv ? (lowConf ? `${V.srcProv} (low conf)` : V.srcProv) : '';
-    const origRow = h('span', { class: 'ss-row' },
-      h('span', { class: 'ss-l ss-a' + (rev ? ' ss-rev' : '') + (lowConf ? ' ss-low-conf' : ''), title: srcTip, lang:ln.lineLang || V.lang },
-        renderLineTokens(i, ln, true),
-        (showBadges && V.srcProv) ? h('span', { class: 'ss-prov', title: lowConf ? 'Low-confidence ASR segment' : 'Caption source' }, lowConf ? `${V.srcProv} (low conf)` : V.srcProv) : null));
     const tr = transFor(ln);
     if (!tr) void translateVisibleCue(ln, i);
+    else if (V.lines[i + 1] && !transFor(V.lines[i + 1])) void translateVisibleCue(V.lines[i + 1], i + 1);
     const dueIt = tr && !rev ? findDueSavedItemInLine(ln) : null;
     if (dueIt && V._activeDueRecall?.item.id !== dueIt.id) V._activeDueRecall = { li: i, item: dueIt };
     if (!dueIt) V._activeDueRecall = null;
     const recall = V._activeDueRecall;
-    const ratings = recall?.revealed ? h('span', { class: 'ss-recall-ratings', role: 'group', 'aria-label': 'Rate your recall' },
-      ...['Again', 'Hard', 'Good', 'Easy'].map((label) => h('button', {
+    const tr2 = tr2For(ln);
+    const aiTr = aiTransFor(ln);
+
+    const makeTrRow = () => {
+      if (!tr) return null;
+      const ratings = recall?.revealed ? h('span', { class: 'ss-recall-ratings', role: 'group', 'aria-label': 'Rate your recall' },
+        ...['Again', 'Hard', 'Good', 'Easy'].map((label) => h('button', {
+          type: 'button', class: 'ss-recall-pill',
+          onclick: (event) => {
+            event.stopPropagation();
+            if (recall.pending) return;
+            recall.pending = true;
+            chrome.runtime.sendMessage({
+              op: 'reviewStudyItem', id: String(recall.item.id), rating: label.toLowerCase(),
+              timestamp: SS_STORE.reviewTimestamp(recall.item),
+            }, (result) => {
+              recall.pending = false;
+              if (chrome.runtime.lastError || !result?.ok) { toast('Review changed or could not be saved'); return; }
+              _sessionReviewedIds.add(recall.item.id);
+              if (V?._activeDueRecall === recall) {
+                V._activeDueRecall = null;
+                revealedIndex = i;
+                drawLine(i);
+              }
+            });
+          },
+        }, label))) : null;
+      const reveal = recall && !recall.revealed ? h('button', {
         type: 'button', class: 'ss-recall-pill',
         onclick: (event) => {
           event.stopPropagation();
-          if (recall.pending) return;
-          recall.pending = true;
-          chrome.runtime.sendMessage({
-            op: 'reviewStudyItem', id: String(recall.item.id), rating: label.toLowerCase(),
-            timestamp: SS_STORE.reviewTimestamp(recall.item),
-          }, (result) => {
-            recall.pending = false;
-            if (chrome.runtime.lastError || !result?.ok) { toast('Review changed or could not be saved'); return; }
-            _sessionReviewedIds.add(recall.item.id);
-            if (V?._activeDueRecall === recall) {
-              V._activeDueRecall = null;
-              revealedIndex = i;
-              drawLine(i);
-            }
-          });
+          video()?.pause();
+          recall.revealed = true;
+          drawLine(i);
         },
-      }, label))) : null;
-    const reveal = recall && !recall.revealed ? h('button', {
-      type: 'button', class: 'ss-recall-pill',
-      onclick: (event) => {
-        event.stopPropagation();
-        video()?.pause();
-        recall.revealed = true;
-        drawLine(i);
-      },
-    }, `Recall ${dueIt.word} · Reveal`) : null;
-    const trRow = tr ? h('span', { class: 'ss-row' }, reveal || h('span', {
-      class: 'ss-l ss-b' + (rev || recall?.revealed ? ' ss-rev' : ''),
-      title: V.captionEdits?.[ln.editId] ? 'Your correction' : V.trProv || 'Machine translation', lang: S.set.tl,
-    }, tr, (showBadges && (V.trProv || V.captionEdits?.[ln.editId])) ? h('span', { class: 'ss-prov', title: 'Translation source' }, V.captionEdits?.[ln.editId] ? 'Your correction' : V.trProv) : null), ratings) : null;
-    if (S.set.transAboveOrig && trRow) appendClean(ov, trRow, origRow);
-    else appendClean(ov, origRow, trRow);
-    // Keep the latest speech visible while its translation is in flight.
-    // The completed source/translation pair stays together below the preview.
+      }, `Recall ${dueIt.word} · Reveal`) : null;
+      return h('span', { class: 'ss-row ss-row-tr' }, reveal || h('span', {
+        class: 'ss-l ss-b' + (rev || recall?.revealed ? ' ss-rev' : ''),
+        title: V.captionEdits?.[ln.editId] ? 'Your correction' : V.trProv || 'Machine translation', lang: S.set.tl,
+      }, tr, (showBadges && (V.trProv || V.captionEdits?.[ln.editId])) ? h('span', { class: 'ss-prov', title: 'Translation source' }, V.captionEdits?.[ln.editId] ? 'Your correction' : V.trProv) : null), ratings);
+    };
+    const makeTr2Row = () => (!recall && tr2 && tr2 !== tr) ? h('span', { class: 'ss-row ss-row-tr2' },
+      h('span', { class: 'ss-l ss-b ss-c' + (rev ? ' ss-rev' : ''), title: V.tr2Prov || '' },
+        tr2, (showBadges && V.tr2Prov) ? h('span', { class: 'ss-prov', title: 'Third language source' }, V.tr2Prov) : null)) : null;
+    const makeAiRow = () => (!recall && aiTr && aiTr !== tr) ? h('span', { class: 'ss-row ss-row-ai' },
+      h('span', { class: 'ss-l ss-b' + (rev ? ' ss-rev' : ''), title: V.aiTrProv || '', style: { color: '#7ee2d6' } },
+        aiTr, (showBadges && V.aiTrProv) ? h('span', { class: 'ss-prov' }, V.aiTrProv) : null)) : null;
+
+    const sameBase = !liveState.active && ov._renderedCue === ln && ov._renderedRev === rev && !recall && !ov.querySelector('.ss-row-tr button');
+    if (sameBase) {
+      ov.querySelectorAll('.ss-row-tr, .ss-row-tr2, .ss-row-ai').forEach((n) => n.remove());
+      const trRow = makeTrRow();
+      const origEl = ov.querySelector('.ss-row-orig');
+      if (trRow) {
+        if (S.set.transAboveOrig && origEl && origEl.parentNode === ov) ov.insertBefore(trRow, origEl);
+        else ov.append(trRow);
+      }
+      const r2 = makeTr2Row(); if (r2) ov.append(r2);
+      const rAi = makeAiRow(); if (rAi) ov.append(rAi);
+      syncNativeCaptions(ov.isConnected);
+      return;
+    }
+
+    const srcTip = V.srcProv ? (lowConf ? `${V.srcProv} (low conf)` : V.srcProv) : '';
+    const origRow = h('span', { class: 'ss-row ss-row-orig' },
+      h('span', { class: 'ss-l ss-a' + (rev ? ' ss-rev' : '') + (lowConf ? ' ss-low-conf' : ''), title: srcTip, lang: ln.lineLang || V.lang },
+        renderLineTokens(i, ln, true),
+        (showBadges && V.srcProv) ? h('span', { class: 'ss-prov', title: lowConf ? 'The speech recogniser was not sure it heard this line right' : 'Caption source' }, lowConf ? `${V.srcProv} (may be misheard)` : V.srcProv) : null));
+    const trRow = makeTrRow();
+    const frag = document.createDocumentFragment();
     const pending = liveState.active && liveState.mode === 'asr' && V.lines.at(-1);
     if (pending && pending !== ln && !transFor(pending)) {
-      ov.prepend(h('span', {class:'ss-row ss-live-preview', lang:pending.lineLang || V.lang,
-        'aria-label':'Latest speech, translation pending'}, h('span', {class:'ss-l'}, pending.t)));
+      frag.append(h('span', { class: 'ss-row ss-live-preview', lang: pending.lineLang || V.lang,
+        'aria-label': 'Latest speech, translation pending' }, h('span', { class: 'ss-l' }, pending.t)));
     }
+    frag.append(buildOverlayControlBar());
+    if (S.set.transAboveOrig && trRow) frag.append(trRow, origRow);
+    else { frag.append(origRow); if (trRow) frag.append(trRow); }
+    const r2 = makeTr2Row(); if (r2) frag.append(r2);
+    const rAi = makeAiRow(); if (rAi) frag.append(rAi);
+    ov.textContent = '';
+    appendClean(ov, frag);
+    ov._renderedCue = ln;
+    ov._renderedRev = rev;
     syncNativeCaptions(ov.isConnected);
-    const tr2 = tr2For(ln);
-    if (!reveal && tr2 && tr2 !== tr) {
-      appendClean(ov, h('span', { class: 'ss-row' },
-        h('span', { class: 'ss-l ss-b ss-c' + (rev ? ' ss-rev' : ''), title: V.tr2Prov || '' },
-          tr2,
-          (showBadges && V.tr2Prov) ? h('span', { class: 'ss-prov', title: 'Third language source' }, V.tr2Prov) : null)));
-    }
-    const aiTr = aiTransFor(ln);
-    if (!reveal && aiTr && aiTr !== tr) {
-      appendClean(ov, h('span', { class: 'ss-row' },
-        h('span', { class: 'ss-l ss-b' + (rev ? ' ss-rev' : ''), title: V.aiTrProv || '', style: { color: '#7ee2d6' } },
-          aiTr,
-          (showBadges && V.aiTrProv) ? h('span', { class: 'ss-prov' }, V.aiTrProv) : null)));
-    }
   };
 
 
@@ -2354,7 +2589,11 @@
     const slugDash = encodeURIComponent(queryText.toLowerCase().replace(/\s+/g, '-'));
     const ygLang = { en: 'english', ja: 'japanese', zh: 'chinese', yue: 'cantonese', ko: 'korean', ru: 'russian' }[base] || 'english';
 
+    const aiLangName = { en: 'English', ja: 'Japanese', zh: 'Mandarin Chinese', yue: 'Cantonese', ko: 'Korean', ru: 'Russian', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian', pt: 'Portuguese', tl: 'Tagalog' }[base] || '';
+    const aiQuery = `What does "${queryText}" mean${aiLangName ? ` in ${aiLangName}` : ''}? Explain the meaning, tone and typical use, with examples.`;
+
     return h('div', { class: 'ss-res-bar' },
+      h('a', { class: 'ss-res-pill ss-res-ai', href: `https://www.google.com/search?udm=50&q=${encodeURIComponent(aiQuery)}`, target: '_blank', rel: 'noopener', title: 'Ask Google AI Mode about this expression in a new tab' }, '✨ Ask Google AI'),
       h('a', { class: 'ss-res-pill', href: `https://youglish.com/pronounce/${encodeURIComponent(queryText)}/${ygLang}`, target: '_blank', rel: 'noopener', title: 'Hear real speakers pronounce this phrase on YouGlish' }, '▶ YouGlish'),
       h('a', { class: 'ss-res-pill', href: `https://en.wiktionary.org/wiki/${enc}`, target: '_blank', rel: 'noopener' }, 'Wiktionary'),
       h('a', { class: 'ss-res-pill', href: `https://forvo.com/word/${enc}/`, target: '_blank', rel: 'noopener' }, 'Forvo'),
@@ -2481,12 +2720,14 @@
 
     const rankLabel = rank ? (rank <= 1000 ? `★★★ #${rank}` : rank <= 3000 ? `★★☆ #${rank}` : `★☆☆ #${rank > 30000 ? '30k+' : rank}`) : '';
     const headNode = h('h4', {}, sceneHead || headTitle);
+    const speakHead = () => speakWord(videoCard && !activeFe ? headNode.textContent : sceneHead || queryDisplay, V.lang);
+    // Clicking a word says it once, unless the video keeps playing or the viewer turned this off.
+    if (S.set.autoSpeak !== false && !keepPlaying) speakHead();
     const hdr = h('div', { class: 'ss-dh' },
       h('div', { class: 'ss-dh-left' },
         headNode,
         readingBadge,
-        h('button', { class: 'ss-tts-btn', title: 'Pronounce aloud',
-          onclick: () => speakWord(videoCard && !activeFe ? headNode.textContent : sceneHead || queryDisplay, V.lang) }, 'Speak'),
+        h('button', { class: 'ss-tts-btn', title: 'Hear it again', onclick: speakHead }, 'Hear again'),
         rankLabel && !activeFe ? h('span', { class: 'ss-badge', title: `Word frequency rank ${rankLabel}` }, rankLabel.split(' ')[0]) : null,
         modeSwitchPill),
       h('button', { 'aria-label': 'Close dictionary', onclick: () => closeDock(videoCard) }, '×'));
@@ -2508,11 +2749,22 @@
       readingBadge.textContent = feMeta.reading;
       readingBadge.style.display = '';
     }
-    const contrastBox = (pieInfo && (pieInfo.literal_gloss || pieInfo.idiomatic_gloss || pieInfo.explain)) || offlineLit || offlineGloss || offlineFalseFriend || eqBox
+    const quoteCite = (feMeta && (feMeta.author || feMeta.work)) ? [feMeta.author, feMeta.work].filter(Boolean).join(' · ') : '';
+    const quotePartner = (feMeta && feMeta.partner) || '';
+    const l1Transfer = (feMeta && SS_IDIOMS.classifyL1Transfer && S.set.tl)
+      ? SS_IDIOMS.classifyL1Transfer(feMeta, feMeta.codeMix ? 'en' : V.lang, S.set.tl, V._glossSidecar)
+      : null;
+    const contrastBox = (pieInfo && (pieInfo.literal_gloss || pieInfo.idiomatic_gloss || pieInfo.explain)) || offlineLit || offlineGloss || offlineFalseFriend || eqBox || quoteCite || quotePartner || l1Transfer
       ? h('div', { class: 'ss-contrast' },
           h('div', {}, h('b', {}, pieInfo && pieInfo.usage === 'literal' ? 'Literal in this scene' : (offlineNative || 'Formulaic expression')),
+            (feMeta && (feMeta.isQuote || feMeta.bucket === 'quote')) ? h('span', { class: 'ss-tag-pill ss-tag-quote' }, feMeta.quoteKind || 'quote') : null,
+            (feMeta && (feMeta.codeMix || feMeta.bucket === 'codemix')) ? h('span', { class: 'ss-tag-pill ss-tag-codemix' }, 'EN code-mix') : null,
+            l1Transfer ? h('span', { class: `ss-l1-pill ss-l1-${l1Transfer.kind}`, title: l1Transfer.detail }, l1Transfer.kind === 'congruent' ? `✓ ${l1Transfer.label}` : `⚠ ${l1Transfer.label}`) : null,
             feMeta && feMeta.play ? h('span', { class: 'ss-tag-pill ss-tag-play' }, (SS_IDIOMS && SS_IDIOMS.resolveNativeLabel) ? SS_IDIOMS.resolveNativeLabel('play', 'play', V.lang, '', true) : 'playful') : null,
             feMeta && feMeta.register ? h('span', { class: 'ss-tag-pill ss-tag-slang' }, feMeta.register) : null),
+          l1Transfer && l1Transfer.detail ? h('div', { style: { fontSize: '11.5px', opacity: '.82', marginTop: '2px' } }, l1Transfer.detail) : null,
+          quoteCite ? h('div', { class: 'ss-quote-cite' }, quoteCite) : null,
+          quotePartner ? h('div', { class: 'ss-quote-partner' }, `Paired line: ${quotePartner}`) : null,
           pieInfo && pieInfo.explain ? h('div', { style: { marginTop: '2px' } }, pieInfo.explain) : null,
           (pieInfo && pieInfo.literal_gloss) || offlineLit ? h('div', { style: { fontSize: '11.5px', opacity: '.82' } }, `Literal: ${(pieInfo && pieInfo.literal_gloss) || offlineLit}`) : null,
           (pieInfo && pieInfo.idiomatic_gloss) || offlineGloss ? h('div', { class: 'ss-fe-meaning', style: { fontSize: '11.5px', color: '#2dd4bf' } }, `Meaning: ${(pieInfo && pieInfo.idiomatic_gloss) || offlineGloss}`) : null,
@@ -2817,12 +3069,11 @@
         sceneSense ? h('div', {class: 'ss-xray'}, h('div', {class: 'ss-xray-title'}, 'Meaning in this line · English'),
           h('div', {class: 'ss-video-context-text'}, sceneSense)) : null,
         transferPanel, body, h('div', { class: 'ss-video-actions' }, btns, askGemini),
-        currentExamples(2, true), grammar, sceneSense ? null : xrayBox,
+        currentExamples(5, true), grammar, sceneSense ? null : xrayBox,
         sceneSense ? null : contrastBox, literarySlot, episodicSlot, sceneSense ? null : deceptivePill, spokenSlot, matchTraceEl, moreBox);
-      const examples = h('section', { hidden: '', 'aria-label': 'Examples' },
-        currentExamples(5, false),
+      const examples = h('section', { 'aria-label': 'Examples' },
         h('details', { class: 'ss-more', ontoggle: (e) => { if (e.target.open) loadExamples(); } },
-          h('summary', {}, 'More examples by word match'), tatoebaBox));
+          h('summary', {}, 'More example sentences'), tatoebaBox));
       const study = globalThis.SS_LOCAL_STUDY?.create(document, {
         modes: ['explain', 'examples', 'grammar'],
         request: async (mode) => {
@@ -2831,17 +3082,10 @@
           return comp('/explain', { ...cuePayload, gloss_only: false, mode }, 'POST', 120000);
         },
       });
-      const studyPanel = study ? h('section', { hidden: '', 'aria-label': 'Local study' },
+      const studyPanel = study ? h('details', { class: 'ss-more', 'aria-label': 'Local study' },
+        h('summary', {}, 'Study this line with Local AI'),
         h('p', { class: 'ss-video-study-quote' }, renderHighlightedSnippet(source, activeFe?.surface || word)), study) : null;
-      const views = [['Meaning', meaning], ['Examples', examples], ['Study', studyPanel]].filter(([, panel]) => panel);
-      const nav = h('div', { class: 'ss-video-dict-nav' }, ...views.map(([label, panel]) => h('button', {
-        'aria-pressed': String(panel === meaning),
-        onclick: (event) => {
-          for (const [, section] of views) section.hidden = section !== panel;
-          for (const button of nav.children) button.setAttribute('aria-pressed', String(button === event.currentTarget));
-        },
-      }, label)));
-      appendClean(dockEl, hdr, nav, meaning, examples, studyPanel);
+      appendClean(dockEl, hdr, meaning, examples, studyPanel);
     } else {
       appendClean(dockEl, hdr, literarySlot, episodicSlot, deceptivePill, spokenSlot, matchTraceEl, contrastBox, xrayBox, btns, body, inVidBox, moreBox);
     }
@@ -2950,7 +3194,10 @@
       class: 'ss-dict-tab', 'data-id': src.id, title: src.note || src.name,
       onclick: () => { S.set.dictSrc = src.id; save('set'); show(src); },
     }, src.name));
-    const pick = () => srcs.find((s) => s.id === S.set.dictSrc) || srcs[0];
+    const pick = () => {
+      const usable = usableDictSources(srcs, word, V && V.lang);
+      return usable.find((s) => s.id === S.set.dictSrc) || usable[0] || srcs[0];
+    };
     const checkGrammar = () => {
       if (grammar && srcs.some((src) => src.entries.some((entry) => /^(?:v|verb|v\.)(?:$|\s)/i.test(entry.pos || '')))) {
         grammar.hidden = false;
@@ -3147,6 +3394,7 @@
     const off = subOff(anchor);
     const targetSec = Math.max(0, t + off);
     clipStopAt = endAt > 0 ? endAt + subOff(endAt - 0.000001) : -1;
+    autoPauseSeekAt = Date.now(); autoPausedFor = -1;   // a jump arms every line again, so a replayed line pauses at its end
     if (s && typeof s.seek === 'function') s.seek(targetSec);
     else if (v) v.currentTime = targetSec + 0.01;
     if (v && v.paused && v.play) v.play()?.catch?.(() => {});
@@ -3174,6 +3422,60 @@
     media.playbackRate = Math.min(media.playbackRate, 0.75);
   };
   const replayScene = (t, endT) => seek(Math.max(0, t - 0.3), endT + 0.5, t);
+  // ---- Auto-pause: stop at the end of every line until the learner continues (Space, D, S or play) ----
+  // The decision is a pure function so tests can lift it out between these two markers.
+  const autoPauseDecision = (st) => {
+    if (!st.on || st.live || st.seeking || st.peek || st.clip || st.looping || st.justSeeked) return 'none';
+    if (st.cur < 0 || st.instrumental) return 'none';
+    if (st.pausedFor === st.cur) return st.t < st.end - Math.min(0.6, (st.end - st.start) / 2) ? 'rearm' : 'none';
+    if (st.paused) return 'none';
+    const margin = Math.max(0.12, 0.1 * (st.rate || 1));
+    return st.t >= st.end - margin && st.t <= st.end + 0.4 ? 'pause' : 'none';
+  };
+  let autoPausedFor = -1;        // line index already paused for, so one line pauses once
+  let autoPauseActive = false;   // true while the video sits in an auto-pause
+  let autoPauseSeekAt = 0;       // time of the last seek: a jump is not the end of a line
+  let autoPauseSpaceUp = false;  // swallow the key-up of the Space that continued
+  let autoPauseHintEl = null;
+  const endAutoPause = () => {
+    autoPauseActive = false;
+    if (autoPauseHintEl) { autoPauseHintEl.remove(); autoPauseHintEl = null; }
+  };
+  const showAutoPauseHint = () => {
+    if (autoPauseHintEl) autoPauseHintEl.remove();
+    autoPauseHintEl = h('div', { class: 'ss-autopause-hint' }, 'Auto-paused · Space to continue');
+    (document.fullscreenElement || playerContainer() || document.body).append(autoPauseHintEl);
+  };
+  const setAutoPause = (on) => {
+    S.set.autoPause = !!on; save('set');
+    autoPausedFor = -1; endAutoPause();
+    toast(on ? 'Auto-pause on: stops after each line (Space to continue, Q to turn off)' : 'Auto-pause off');
+  };
+  const runAutoPause = (v, rawT, liveMode) => {
+    if (autoPauseActive) {
+      if (v.paused) return true;   // hold the line just heard until the learner continues
+      endAutoPause();
+    }
+    if (!S.set.autoPause) return false;
+    const cur = V.cur, ln = V.lines[cur];
+    if (!ln) return false;
+    const act = autoPauseDecision({
+      on: true, live: liveMode, seeking: !!v.seeking, peek: !!peekKey, clip: clipStopAt > 0,
+      looping: loopIdx >= 0 || !!loopRange, justSeeked: Date.now() - autoPauseSeekAt < 500,
+      cur, instrumental: !!ln.isInstrumental, pausedFor: autoPausedFor, paused: !!v.paused,
+      t: rawT - subOff(ln.s), start: ln.s, end: lineEnd(cur), rate: v.playbackRate,
+    });
+    if (act === 'rearm') { autoPausedFor = -1; return false; }
+    if (act !== 'pause') return false;
+    autoPausedFor = cur;
+    autoPauseActive = true;
+    v.pause();
+    showAutoPauseHint();
+    logEv('autoPause', { idx: cur });
+    return true;
+  };
+  // ---- end auto-pause ----
+
   let repeatSession = null;
   const clearRepeatSession = (resumeGap=false) => {
     const media = resumeGap && repeatSession?.clearGap && repeatSession.view === V ? video() : null;
@@ -3435,6 +3737,9 @@
     toast(`Glossary ready (${merged.length} terms · ${res.mode})`);
   };
 
+  // The local translator runs only when the user picked "Local AI first" or a Local GPU engine in Options.
+  // Unset (Options shows "Web service (default)") = human track, then YouTube MT, then Google/Microsoft.
+  function localMtChosen() { const v = S.set.sceneServices?.subtitle || ''; return !!(companionHealth && companionHealth.plamo) && (v === 'auto' || v.startsWith('local_')); }
   const runPlamoTranslate = async (silent = false, myRun = run, forceBig = false) => {
     if (!V || !V.lines.length || !S.set.tl) return;
     if (sameTranslationLanguage(S.set.tl, V.yueByText ? 'yue' : V.lang)) return;
@@ -3442,7 +3747,8 @@
     const subSvc = (S.set.sceneServices && S.set.sceneServices.subtitle) || 'auto';
     const subLocalMap = { local_plamo2b: 'plamo-2b', local_index2b: 'index-2b', local_gemma_e4b: 'gemma-e4b', local_hymt7b: 'hy-mt2-7b' };
     const chosenModel = subLocalMap[subSvc] || S.set.mtModel || 'plamo-2b';
-    const useBig = forceBig || (!!S.set.useBigLlm && !!(S.set.llmUrl || (companionHealth && companionHealth.big_llm_configured)));
+    // The Big LLM pass goes through the companion. Without one, a stored useBigLlm must not block web translation.
+    const useBig = !localAiGone && (forceBig || (!!S.set.useBigLlm && !!(S.set.llmUrl || (companionHealth && companionHealth.big_llm_configured))));
     const provKey = useBig ? `big:${S.set.llmModel || 'api'}` : (subSvc !== 'auto' && !subLocalMap[subSvc] ? `svc:${subSvc}` : chosenModel);
     const vid = V.info && V.info.videoId;
 
@@ -3462,92 +3768,139 @@
     }
 
     if (!silent) toast(useBig ? 'Pre-translating full script with Big LLM…' : (subSvc === 'free_web' ? 'Translating via Web MT…' : (subSvc === 'custom_openai' ? 'Translating via Custom API…' : 'Translating with AI…')));
-    // Merge user glossary + matched FE idiom hints (meaning + extra.eq) across the full track
-    const gl = buildSliceGlossary(0, V.lines.length - 1, tl, useBig);
-
-    let res = null;
-    if (useBig || (subSvc !== 'free_web' && subSvc !== 'browser_api' && subSvc !== 'custom_openai' && companionHealth && companionHealth.plamo)) {
-      res = await comp('/translate', {
-        lines: V.lines.map((l) => ({ s: l.s, d: l.d || 0, t: l.t })),
-        target_lang: tl,
-        glossary: gl,
-        merge_clauses: S.set.mergeClauses !== false,
-        title: (V.info && V.info.title) || '',
-        author: (V.info && V.info.author) || '',
-        model: chosenModel,
-        device: S.set.mtDevice || 'gpu',
-        use_history: true,
-        use_big_llm: useBig,
-        llm_url: S.set.llmUrl || '',
-        llm_key: S.set.llmKey || '',
-        llm_model: S.set.llmModel || '',
-      }, 'POST', 180000);
-      if (myRun !== run || !V) return;
-    } else if (subSvc === 'custom_openai') {
-      const cr = await bg({
-        op: 'customTranslate',
-        texts: V.lines.map((l) => (l.isInstrumental ? '' : l.t)),
-        tl,
-        customApi: S.set.customApi || null,
-        timeoutMs: 60000,
-      });
-      if (myRun !== run || !V) return;
-      if (cr && cr.ok && Array.isArray(cr.translations)) {
-        res = { ok: true, translations: cr.translations, model: cr.model || 'Custom API' };
-      }
-    }
-    if (!res || !res.ok || !res.translations) {
-      // Zero-setup fallback: Chrome Built-in On-Device Translator -> Free Web MT (no companion needed)
-      let fbTrans = null;
-      let fbTag = 'Web MT';
-      const srcBase = (V.lang || 'auto').split('-')[0];
-      const dstBase = tl.split('-')[0];
-      const TrApi = subSvc !== 'free_web' && S.set.useChromeBuiltinTranslator !== false && ((typeof Translator !== 'undefined' && Translator) || (typeof ai !== 'undefined' && ai && ai.translator));
-      if (TrApi && typeof TrApi.create === 'function' && srcBase && srcBase !== 'auto' && srcBase !== dstBase) {
-        try {
-          const inst = await TrApi.create({ sourceLanguage: srcBase, targetLanguage: dstBase });
-          const out = [];
-          for (const ln of V.lines) out.push(ln.t && !ln.isInstrumental ? await inst.translate(ln.t) : '');
-          if (out.some(Boolean)) { fbTrans = out; fbTag = 'Chrome AI'; }
-        } catch (_) {}
-      }
-      if (!fbTrans) {
-        if (!silent) toast('Translating subtitles via Web MT (zero-setup)…');
-        const wr = await bg({
-          op: 'webTranslate',
-          texts: V.lines.map((l) => (l.isInstrumental ? '' : l.t)),
-          sl: V.lang || 'auto',
+    const translateSlice = async (sliceLines, sliceGl) => {
+      let r = null;
+      if (useBig || localMtChosen()) {
+        r = await comp('/translate', {
+          lines: sliceLines.map((l) => ({ s: l.s, d: l.d || 0, t: l.t })),
+          target_lang: tl,
+          glossary: sliceGl,
+          merge_clauses: S.set.mergeClauses !== false,
+          title: (V.info && V.info.title) || '',
+          author: (V.info && V.info.author) || '',
+          model: chosenModel,
+          device: S.set.mtDevice || 'gpu',
+          use_history: true,
+          use_big_llm: useBig,
+          llm_url: S.set.llmUrl || '',
+          llm_key: S.set.llmKey || '',
+          llm_model: S.set.llmModel || '',
+        }, 'POST', 180000);
+        if (myRun !== run || !V) return null;
+      } else if (subSvc === 'custom_openai') {
+        const cr = await bg({
+          op: 'customTranslate',
+          texts: sliceLines.map((l) => (l.isInstrumental ? '' : l.t)),
           tl,
+          customApi: S.set.customApi || null,
+          timeoutMs: 60000,
         });
-        if (myRun !== run || !V) return;
-        if (wr && wr.ok && Array.isArray(wr.translations)) {
-          fbTrans = wr.translations;
-          fbTag = wr.provider || 'Web MT';
+        if (myRun !== run || !V) return null;
+        if (cr && cr.ok && Array.isArray(cr.translations)) {
+          r = { ok: true, translations: cr.translations, model: cr.model || 'Custom API' };
         }
       }
-      if (!fbTrans) {
+      if (!r || !r.ok || !r.translations) {
+        let fbTrans = null;
+        let fbTag = 'Web MT';
+        const srcBase = (V.lang || 'auto').split('-')[0];
+        const dstBase = tl.split('-')[0];
+        const TrApi = subSvc !== 'free_web' && S.set.useChromeBuiltinTranslator !== false && ((typeof Translator !== 'undefined' && Translator) || (typeof ai !== 'undefined' && ai && ai.translator));
+        if (TrApi && typeof TrApi.create === 'function' && srcBase && srcBase !== 'auto' && srcBase !== dstBase) {
+          try {
+            const inst = await TrApi.create({ sourceLanguage: srcBase, targetLanguage: dstBase });
+            const out = [];
+            for (const ln of sliceLines) out.push(ln.t && !ln.isInstrumental ? await inst.translate(ln.t) : '');
+            if (out.some(Boolean)) { fbTrans = out; fbTag = 'Chrome AI'; }
+          } catch (_) {}
+        }
+        if (!fbTrans) {
+          const wr = await bg({
+            op: 'webTranslate',
+            texts: sliceLines.map((l) => (l.isInstrumental ? '' : l.t)),
+            sl: V.lang || 'auto',
+            tl,
+          });
+          if (myRun !== run || !V) return null;
+          if (wr && wr.ok && Array.isArray(wr.translations)) {
+            fbTrans = wr.translations;
+            fbTag = wr.provider || 'Web MT';
+          }
+        }
+        if (!fbTrans) return { ok: false, error: r && r.error };
+        r = { ok: true, translations: fbTrans, model: fbTag };
+      }
+      return r;
+    };
+
+    const totalLines = V.lines.length;
+    if (totalLines <= 28) {
+      const gl = buildSliceGlossary(0, totalLines - 1, tl, useBig);
+      const res = await translateSlice(V.lines, gl);
+      if (myRun !== run || !V) return;
+      if (!res || !res.ok || !res.translations) {
         if (!silent) toast(res && res.error ? res.error : 'Translation unavailable offline');
         return;
       }
-      res = { ok: true, translations: fbTrans, model: fbTag };
+      const aiLines = V.lines.map((l, idx) => ({ s: l.s, d: l.d, t: res.translations[idx] || '' }));
+      const tag = (res.model || 'PLaMo-2B') + (res.is_lyrics ? '·Lyric' : '') + (gl.length ? '+Gloss' : '');
+      if (vStorageKey && SS_STORE.saveTrCache) SS_STORE.saveTrCache(vStorageKey, tl, provKey, res.translations, tag);
+      if (V.trProv === 'Human' && silent && !S.set.preferAiOverHuman) {
+        V.aiTr = aiLines; V.aiTrProv = tag;
+      } else {
+        if (V.trProv === 'Human' && !V.humanTr) V.humanTr = V.tr;
+        V.tr = aiLines; V.sameTiming = true; V.trProv = tag;
+      }
+      V._aiTranslatedFor = tl + '|' + provKey;
+      drawHead(); drawList();
+      if (V.cur >= 0) drawLine(V.cur);
+      if (!silent) toast(`Translated (${tag})`);
+      return;
     }
-    const aiLines = V.lines.map((l, idx) => ({ s: l.s, d: l.d, t: res.translations[idx] || '' }));
-    const tag = (res.model || 'PLaMo-2B') + (res.is_lyrics ? '·Lyric' : '') + (gl.length ? '+Gloss' : '');
-    if (vStorageKey && SS_STORE.saveTrCache) SS_STORE.saveTrCache(vStorageKey, tl, provKey, res.translations, tag);
-    if (V.trProv === 'Human' && silent && !S.set.preferAiOverHuman) {
-      V.aiTr = aiLines;
-      V.aiTrProv = tag;
-    } else {
-      if (V.trProv === 'Human' && !V.humanTr) V.humanTr = V.tr;
-      V.tr = aiLines;
-      V.sameTiming = true;
-      V.trProv = tag;
+
+    // Long videos: start around the current playhead first and stream slices progressively so CC never lags!
+    const playAnchor = Math.max(0, (V.cur >= 0 ? V.cur : 0) - 2);
+    const sliceRanges = [];
+    for (let a = playAnchor; a < totalLines; a += 28) sliceRanges.push([a, Math.min(totalLines - 1, a + 27)]);
+    for (let a = 0; a < playAnchor; a += 28) sliceRanges.push([a, Math.min(playAnchor - 1, a + 27)]);
+
+    const allTexts = V.lines.map((l) => (V.tr && V.sameTiming ? (transFor(l) || '') : ''));
+    const aiLines = V.lines.map((l, idx) => ({ s: l.s, d: l.d, t: allTexts[idx] }));
+    let finalTag = '';
+    let hadAnyGloss = false;
+    let sliceOk = 0;
+    for (const [sIdx, eIdx] of sliceRanges) {
+      if (myRun !== run || !V) return;
+      const gl = buildSliceGlossary(sIdx, eIdx, tl, useBig);
+      if (gl.length) hadAnyGloss = true;
+      const res = await translateSlice(V.lines.slice(sIdx, eIdx + 1), gl);
+      if (myRun !== run || !V) return;
+      if (!res || !res.ok || !res.translations) {
+        if (!sliceOk && !silent) toast(res && res.error ? res.error : 'Translation unavailable offline');
+        if (!sliceOk) return;
+        continue;
+      }
+      sliceOk++;
+      finalTag = (res.model || 'PLaMo-2B') + (res.is_lyrics ? '·Lyric' : '') + (hadAnyGloss ? '+Gloss' : '');
+      for (let off = 0; off <= eIdx - sIdx; off++) {
+        const gi = sIdx + off;
+        const val = res.translations[off] || '';
+        allTexts[gi] = val;
+        if (aiLines[gi]) aiLines[gi].t = val;
+      }
+      if (V.trProv === 'Human' && silent && !S.set.preferAiOverHuman) {
+        V.aiTr = aiLines; V.aiTrProv = finalTag;
+      } else {
+        if (V.trProv === 'Human' && !V.humanTr) V.humanTr = V.tr;
+        V.tr = aiLines; V.sameTiming = true; V.trProv = finalTag;
+      }
+      drawList();
+      if (V.cur >= 0) drawLine(V.cur);
     }
+    if (vStorageKey && SS_STORE.saveTrCache && sliceOk) SS_STORE.saveTrCache(vStorageKey, tl, provKey, allTexts, finalTag);
     V._aiTranslatedFor = tl + '|' + provKey;
     drawHead();
-    drawList();
-    if (V.cur >= 0) drawLine(V.cur);
-    if (!silent) toast(`Translated (${tag})`);
+    if (!silent && finalTag) toast(`Translated (${finalTag})`);
   };
 
   const checkCompanionLive = async (timeoutMs = 2000) => {
@@ -3594,7 +3947,7 @@
     let trBusy = null;
     const useWeb = () => {
       const service = S.set.sceneServices?.subtitle || 'auto';
-      return service === 'free_web' || (service === 'auto' && !companionHealth?.plamo);
+      return service === 'free_web' || (service === 'auto' && !localMtChosen());
     };
     const trWanted = () => !!(S.set.tl && (useWeb() || companionHealth.plamo) && V && V.lang && !sameTranslationLanguage(S.set.tl, V.yueByText ? 'yue' : V.lang));
     const translatePending = async () => {
@@ -3955,7 +4308,7 @@
     liveState.lastDomText = '';
     liveState.lastDomCommitted = '';
     liveState.lastDomChangeAt = Date.now();
-    liveState.progressTxt = `Watching ${V.site ? V.site.name : 'Live'} captions (zero-GPU mode)…`;
+    liveState.progressTxt = `Showing ${V.site ? V.site.name : 'the video'}’s live captions`;
     const vid = V.info.videoId;
     const myRun = run;
 
@@ -4055,6 +4408,11 @@
       return null;
     }
     if (requested && requested !== 'auto') return requested;
+    // Automatic: Qwen3-ASR 0.6B. On a real uncaptioned Cantonese video (2026-11-27) it read 5 s pieces in 1.7 s with
+    // near whole-video quality, while Whisper tiny/base wrote Mandarin or English. Whisper tiny/base only when asked for
+    // or when no Vulkan recogniser is installed.
+    if (health.qwen3_asr_small) return 'qwen3_small_vulkan';
+    if (health.whisper_vulkan) return 'whisper_vulkan';
     if (lang === 'ko' && health.live_whisper_base) return 'live_base';
     if (health.live_whisper_tiny) return 'live_tiny';
     if (health.live_whisper_base) return 'live_base';
@@ -4327,6 +4685,49 @@
   };
 
   const setOpen = { ai: true, adv: false, kbd: false };
+  // Settings shows the everyday rows; everything else in a section sits in a closed "More" group.
+  const SET_EVERYDAY = new Set([
+    'Translate this video again', 'Translate every video with local AI', 'Transcribe videos that have no subtitles',
+    'Subtitle language', 'Translate to', 'Third language (trilingual subtitles)',
+    'Readings above Japanese / Chinese / Cantonese / Korean',
+    'Subtitle text size', 'Subtitle height on the video', 'Subtitle background opacity',
+    'Use synced lyrics for songs automatically', 'Say a word when I click it', 'Your vocabulary level',
+    'Hover a word for a quick meaning (click opens every dictionary)', 'Pause on subtitle hover (resume on leave)',
+    'Panel beside the video (off = in the sidebar)', 'Dark theme',
+    // the line-by-line loop: how to stop, what a click does, what is hidden while listening
+    'Auto-pause after each line (Space to continue, Q to toggle)', 'Mode', 'When clicking a subtitle word',
+    'Listening shield / blur mode (B)', 'Translate selected text on any website', 'Translate every video automatically',
+  ]);
+  const setFoldOpen = new Set();
+  const foldSettings = (root) => {
+    const groups = [];
+    let cur = null;
+    for (const el of Array.from(root.children)) {
+      if (el.matches('section.ss-set-sec')) {
+        if (cur) cur.before = el;
+        cur = null;
+        const hdr = el.querySelector(':scope > .ss-sec-hdr');
+        groups.push({ name: hdr ? hdr.textContent : '', host: el, before: null,
+          rows: Array.from(el.children).filter((c) => c.matches('.ss-modal-row, .ss-kbd-list')) });
+      } else if (el.matches('.ss-sec-hdr')) {
+        if (cur) cur.before = el;
+        cur = { name: el.textContent, host: root, before: null, rows: [] };
+        groups.push(cur);
+      } else if (cur && el.matches('.ss-modal-row')) cur.rows.push(el);
+    }
+    for (const g of groups) {
+      const label = (r) => { const sp = r.querySelector(':scope > span'); return sp ? sp.textContent : ''; };
+      const extra = g.rows.filter((r) => !SET_EVERYDAY.has(label(r)));
+      if (!extra.length) continue;
+      const all = extra.length === g.rows.length;
+      const box = h('details', { class: 'ss-set-more' },
+        h('summary', {}, all ? `Show ${extra.length > 1 ? extra.length + ' ' : ''}settings` : `More ${g.name.toLowerCase()} settings (${extra.length})`));
+      box.open = setFoldOpen.has(g.name);
+      box.addEventListener('toggle', () => { if (box.open) setFoldOpen.add(g.name); else setFoldOpen.delete(g.name); });
+      for (const r of extra) box.append(r);
+      g.host.insertBefore(box, g.before);
+    }
+  };
   let setNavActive = 'ss-sec-ai', setScroll = 0;  // settings: left nav jumps to a section; scroll position kept across redraws   // which settings groups are open, kept across redraws
   // Translator menu: every model the companion has on this PC, grouped by family, with the speed measured on this PC
   // (companion /mt_models, numbers from _dev/mt_speed_bench.py). Without the companion it falls back to the two old choices.
@@ -4414,12 +4815,14 @@
     const leftCol = h('div', { class: 'ss-modal-left' },
       h('div', { class: 'ss-modal-brand' }, h('span', { class: 'ss-modal-logo' }, captionMark()), h('span', {}, 'Phrasebound')),
       h('div', { style: { fontSize: '12px', color: 'var(--ss-fg-muted)', lineHeight: '1.45' } },
-        online
+        localAiGone
+          ? 'Translation by Google and Microsoft. Nothing to set up.'
+          : online
           ? `● Local AI Ready (${companionHealth.gpu_backend || 'GPU'})`
           : '○ Zero-Setup Web AI active (optional local GPU offline)'),
-      h('button', { class: 'ss-btn-chip', onclick: async () => { await checkCompanionLive(); drawSettings(); } }, '↻ Check Local AI Server'),
+      localAiGone ? null : h('button', { class: 'ss-btn-chip', onclick: async () => { await checkCompanionLive(); drawSettings(); } }, '↻ Check Local AI Server'),
       h('nav', { class: 'ss-set-nav' },
-        ...[['ss-sec-ai', 'Local AI'], ['ss-sec-subs', 'Subtitles'], ['ss-sec-study', 'Study'], ['ss-sec-web', 'Webpages & OCR'], ['ss-sec-adv', 'Advanced'], ['ss-sec-kbd', 'Keyboard shortcuts']].map(([id, label]) =>
+        ...[['ss-sec-ai', 'Local AI'], ['ss-sec-subs', 'Subtitles'], ['ss-sec-study', 'Study'], ['ss-sec-web', 'Webpages & OCR'], ['ss-sec-adv', 'Advanced'], ['ss-sec-kbd', 'Keyboard shortcuts']].filter(([id]) => !(localAiGone && id === 'ss-sec-ai')).map(([id, label]) =>
           h('button', { class: 'ss-nav-btn' + (setNavActive === id ? ' ss-act' : ''), 'data-sec': id, onclick: () => {
             setNavActive = id; const el = modalBack && modalBack.querySelector('#' + id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
           } }, label))));
@@ -4428,7 +4831,7 @@
       h('div', { class: 'ss-modal-hdr' },
         h('h3', {}, 'Settings'),
         h('button', { class: 'ss-modal-close', title: 'Close (Esc)', onclick: closeSettingsModal }, '×')),
-      h('section', { id: 'ss-sec-ai', class: 'ss-set-sec' },
+      localAiGone ? null : h('section', { id: 'ss-sec-ai', class: 'ss-set-sec' },
         h('div', { class: 'ss-sec-hdr' }, 'Local AI'),
         V && V.lines.length && online ? mkRow('Translate this video again', h('button', { class: 'ss-teal', onclick: () => { closeSettingsModal(); runPlamoTranslate(false); } }, 'Translate')) : null,
         mkRow('Computer power', sel([
@@ -4464,10 +4867,18 @@
         }, 'Transcribe')) : null,
         mkSwitch('Show human and AI translation together', !!S.set.showDualHumanAi, (v) => {
           S.set.showDualHumanAi = v; save('set');
-          if (v && companionHealth && companionHealth.plamo && V && V.lines.length && !V.aiTr) runPlamoTranslate(true);
+          if (v && localMtChosen() && V && V.lines.length && !V.aiTr) runPlamoTranslate(true);
           else { drawList(); if (V && V.cur >= 0) drawLine(V.cur); }
         })),
       h('div', { class: 'ss-sec-hdr', id: 'ss-sec-subs' }, 'Subtitles'),
+      // These three sat in the Local AI section. They also drive web translation, so they stay when that section is hidden.
+      localAiGone ? mkSwitch('Translate every video automatically', S.set.autoAiTranslate !== false, (v) => { S.set.autoAiTranslate = v; save('set'); if (v && V) maybeAutoTranslate(run); }) : null,
+      localAiGone && V && V.lines.length ? mkRow('Translate this video again', h('button', { class: 'ss-teal', onclick: () => { closeSettingsModal(); runPlamoTranslate(false); } }, 'Translate')) : null,
+      localAiGone ? mkSwitch('Show human and machine translation together', !!S.set.showDualHumanAi, (v) => {
+        S.set.showDualHumanAi = v; save('set');
+        if (v && V && V.lines.length && !V.aiTr) runPlamoTranslate(true);
+        else { drawList(); if (V && V.cur >= 0) drawLine(V.cur); }
+      }) : null,
       V && trackOpts.length ? mkRow('Subtitle language', sel(trackOpts, V.trackKey, (val) => { setSourceTrack(val); drawSettings(); })) : null,
       V ? mkRow('Translate to', buildGroupedTlSelect(S.set.tl || '', (val) => { setTargetLang(val); drawSettings(); }, { offLabel: 'Off', ariaLabel: 'Translate to' })) : null,
       V && S.set.tl ? mkRow('Translation track', sel([
@@ -4519,6 +4930,7 @@
           h('button',{class:'ss-btn-chip',onclick:()=>changeSectionSync(0.25)},'+0.25s'),
           h('button',{class:'ss-btn-chip',onclick:()=>changeSectionSync(null)},'Reset here')
         ] : []))) : null,
+      mkSwitch('Auto-pause after each line (Space to continue, Q to toggle)', !!S.set.autoPause, (v) => setAutoPause(v)),
       mkRow('Repetitions',sel([['0','Until stopped'],['2','Twice'],['3','Three times'],['5','Five times']],
         String(S.set.repeatCount || 0),v=>{S.set.repeatCount=Number(v);save('set');clearRepeatSession(true);})),
       mkSwitch('Leave time to say the line between repeats',!!S.set.repeatSpeakingGap,v=>{
@@ -4531,6 +4943,10 @@
         if (V && V.lines.length) { V.lines = prepareLines(V.lines); drawList(); if (V.cur >= 0) drawLine(V.cur); }
       }),
       h('div', { class: 'ss-sec-hdr', id: 'ss-sec-study' }, 'Study'),
+      mkRow('Use synced lyrics for songs automatically', sel([['on', 'On'], ['off', 'Off']],
+        S.set.autoLyrics === false ? 'off' : 'on', (val) => { S.set.autoLyrics = val === 'on'; save('set'); })),
+      mkRow('Say a word when I click it', sel([['on', 'On'], ['off', 'Off']],
+        S.set.autoSpeak === false ? 'off' : 'on', (val) => { S.set.autoSpeak = val === 'on'; save('set'); })),
       mkRow('Mode', sel([
         ['simple', 'Simple'],
         ['pro', 'Study (adds Practice and Review)'],
@@ -4570,7 +4986,7 @@
       mkSwitch('Remember watched expressions for scene links and quizzes', S.set.idiomHistory !== false, (v) => { S.set.idiomHistory = v; save('set'); }),
       mkSwitch('Hover a word for a quick meaning (click opens every dictionary)', S.set.hoverPeek !== false, (v) => { S.set.hoverPeek = v; save('set'); }),
       mkSwitch('Arrow keys move between lines (like A / D)', !!S.set.arrowKeys, (v) => { S.set.arrowKeys = v; save('set'); }),
-      mkSwitch('Pause on subtitle hover (resume on leave)', !!S.set.pauseOnSubHover, (v) => { S.set.pauseOnSubHover = v; save('set'); }),
+      mkSwitch('Pause on subtitle hover (resume on leave)', S.set.pauseOnSubHover !== false, (v) => { S.set.pauseOnSubHover = v; save('set'); }),
       mkSwitch('Frequency band underlines (2k–8k / 8k–20k)', S.set.freqUnderlines !== false, (v) => { S.set.freqUnderlines = v; save('set'); drawList(); if (V && V.cur >= 0) drawLine(V.cur); }),
       mkSwitch('Condensed playback (skip long unsubtitled gaps)', !!S.set.condensedPlayback, (v) => { S.set.condensedPlayback = v; save('set'); drawHead(); }),
       mkRow('Listening shield / blur mode (B)', sel([
@@ -4585,6 +5001,7 @@
       mkSwitch('Dark theme', S.set.darkTheme !== false, (v) => { S.set.darkTheme = v; save('set'); applyVisualPrefs(); modalBack.querySelector('#ss-modal').classList.toggle('ss-theme-light', v === false); }),
       h('section', { id: 'ss-sec-web', class: 'ss-set-sec' },
         h('div', { class: 'ss-sec-hdr' }, 'Webpages & Burned-In Frame OCR'),
+        localAiGone ? mkSwitch('Translate selected text on any website', S.set.selectTranslate !== false, (v) => { S.set.selectTranslate = v; save('set'); }) : null,
         mkRow('Webpage bilingual scope (Alt+T)', sel([
           ['article', 'Article Only (識文 · main content)'],
           ['full', 'Full Page (docs, forums, dashboards)'],
@@ -4621,27 +5038,27 @@
         }, 'Clear Cached Webpage Translations'))),
       h('section', { id: 'ss-sec-adv', class: 'ss-set-sec' },
         h('div', { class: 'ss-sec-hdr' }, 'Advanced'),
-        mkSwitch('Use Custom Cloud / Ollama Big LLM', !!S.set.useBigLlm, (v) => { S.set.useBigLlm = v; save('set'); }),
-        mkRow('Endpoint URL', h('input', {
+        localAiGone ? null : (mkSwitch('Use Custom Cloud / Ollama Big LLM', !!S.set.useBigLlm, (v) => { S.set.useBigLlm = v; save('set'); })),
+        localAiGone ? null : (mkRow('Endpoint URL', h('input', {
           type: 'text', placeholder: 'http://127.0.0.1:11434/v1/chat/completions',
           value: S.set.llmUrl || '',
           onchange: (e) => { S.set.llmUrl = e.target.value.trim(); save('set'); },
-        })),
-        mkRow('Model name', h('input', {
+        }))),
+        localAiGone ? null : (mkRow('Model name', h('input', {
           type: 'text', placeholder: 'qwen2.5:14b / deepseek-chat / gemini-2.5-flash',
           value: S.set.llmModel || '',
           onchange: (e) => { S.set.llmModel = e.target.value.trim(); save('set'); },
-        })),
-        mkRow('API Key (local browser only)', h('input', {
+        }))),
+        localAiGone ? null : (mkRow('API Key (local browser only)', h('input', {
           type: 'password', placeholder: 'sk-... (optional for Ollama)',
           value: S.set.llmKey || '',
           onchange: (e) => { S.set.llmKey = e.target.value.trim(); save('set'); },
-        })),
-        V && V.lines.length ? mkRow('Run Big-LLM pass', h('button', {
+        }))),
+        localAiGone ? null : (V && V.lines.length ? mkRow('Run Big-LLM pass', h('button', {
           class: 'ss-teal',
           onclick: () => { closeSettingsModal(); runPlamoTranslate(false, run, true); },
-        }, 'Translate w/ Custom LLM')) : null,
-        mkSwitch('Auto-reload extension on file edits', S.set.devAutoReload !== false, (v) => { S.set.devAutoReload = v; save('set'); }),
+        }, 'Translate w/ Custom LLM')) : null),
+        localAiGone ? null : (mkSwitch('Auto-reload extension on file edits', S.set.devAutoReload !== false, (v) => { S.set.devAutoReload = v; save('set'); })),
         mkRow('Research ablation profile', sel([
           ['full', 'Full (All features)'],
           ['control_plain', 'Control (No enhancement/drills)'],
@@ -4653,14 +5070,14 @@
           if (tab === 'practice' && !getProfile().drills) tab = 'lines';
           drawHead(); drawList(); if (V && V.cur >= 0) drawLine(V.cur);
         })),
-        mkRow('Companion URL', h('input', {
+        localAiGone ? null : (mkRow('Companion URL', h('input', {
           type: 'text',
           value: S.set.companionUrl || 'http://127.0.0.1:8787',
           onchange: (e) => {
             S.set.companionUrl = e.target.value.trim(); save('set');
             chrome.runtime.sendMessage({ op: 'setCompanionUrl', url: S.set.companionUrl });
           },
-        })),
+        }))),
         mkRow('AnkiConnect URL', h('input', {
           type: 'text',
           value: S.set.ankiConnectUrl || 'http://127.0.0.1:8765',
@@ -4676,6 +5093,7 @@
         mkKbd('B / E', 'Cycle blur shield / Reveal line'),
         mkKbd('R', 'Save line'),
         mkKbd('L', 'Repeat current line'),
+        mkKbd('Q', 'Auto-pause after each line on / off'),
         mkKbd('[ / ]', 'Set A–B multi-line loop start / end'),
         mkKbd('1 / 2', 'Playback speed −0.1× / +0.1×'),
         mkKbd('C', 'Copy line + translation'),
@@ -4691,6 +5109,7 @@
       class: S.set.darkTheme === false ? 'ss-theme-light' : '',
       onclick: (e) => e.stopPropagation(),
     }, leftCol, rightCol);
+    foldSettings(rightCol);
     appendClean(modalBack, modalCard);
     rightCol.scrollTop = setScroll;
     // highlight the section being read in the left nav
@@ -4712,8 +5131,25 @@
   let dockMoreOpen = false, exportOpen = false;
   const trackKey = (t) => t.lang + '|' + (t.auto ? 'auto' : 'human') + '|' + (t.name || '');
 
+  let headRedrawHeld = false;
   const drawHead = () => {
     if (!headEl) return;
+    // A redraw would close a language or speed menu that is open, so wait until the choice is made.
+    const openMenu = document.activeElement;
+    const inBar = (bar) => !!(bar && typeof bar.contains === 'function' && bar.contains(openMenu));
+    if (openMenu && openMenu.tagName === 'SELECT' && (inBar(headEl) || inBar(qbarEl))) {
+      if (!headRedrawHeld && typeof openMenu.addEventListener === 'function') {
+        headRedrawHeld = true;
+        openMenu.addEventListener('blur', () => { headRedrawHeld = false; setTimeout(drawHead, 0); }, { once: true });
+      }
+      if (headRedrawHeld) return;
+    }
+    for (const bar of [headEl, qbarEl]) {
+      if (!bar || bar.__ssBlurOnPick || typeof bar.addEventListener !== 'function') continue;
+      bar.__ssBlurOnPick = true;
+      // Once a choice is made the menu lets go of focus, so the header can refresh straight away.
+      bar.addEventListener('change', (e) => { if (e.target && e.target.tagName === 'SELECT' && e.target.blur) e.target.blur(); }, true);
+    }
     headEl.textContent = '';
     if (qbarEl) qbarEl.textContent = '';
     if (!V) return;
@@ -4736,17 +5172,10 @@
       className: 'ss-lang-dst',
       ariaLabel: 'Translate subtitles to',
     });
-    const langToggleBtn = h('button', {
-      type: 'button',
-      class: 'ss-lang-toggle' + (S.set.tl ? ' ss-teal' : ''),
-      title: 'Toggle translation on/off (Shift+T)',
-      onclick: toggleTranslationOnOff,
-    }, S.set.tl ? 'Off' : 'On');
     const langPair = h('div', { class: 'ss-lang-pair' },
       srcSel,
       h('span', { class: 'ss-lang-arrow', 'aria-hidden': 'true' }, '→'),
-      dstSel,
-      langToggleBtn);
+      dstSel);
     const headActions = h('div', { class: 'ss-head-actions' },
       h('button', { title: 'Settings & Shortcuts', onclick: () => { settingsOpen = !settingsOpen; drawSettings(); } }, '⚙'),
       h('button', { class: 'ss-hide-panel', title: 'Hide panel (H). Subtitles on the video stay on.', onclick: () => {
@@ -4769,9 +5198,6 @@
           document.getElementById('ss-vocabulary-guide')?.focus?.();
         },
       }, 'Vocabulary guide'));
-    }
-    if (isPro) {
-      appendClean(headEl, h('span', { class: 'ss-badge', title: 'Points earned from practice and review' }, `${S.xp || 0} XP · ${SS_STORE.levelFor(S.xp || 0)}`));
     }
 
     if (qbarEl) {
@@ -5165,46 +5591,61 @@
     const online = companionHealth && companionHealth.ok;
     const isLive = isLiveContext();
     const statusTxt = online
-      ? `● ${companionHealth.gpu_backend || 'Online'}`
-      : '○ Local GPU off (click to wake)';
+      ? `Companion on (${companionHealth.gpu_backend || 'ready'})`
+      : 'Companion off (click to start)';
     const wakeOrCheck = async () => {
       if (online) { checkCompanionLive(); return; }
-      toast('Waking Local Companion…');
+      toast('Starting the companion…');
       const r = await bg({ op: 'wakeCompanion', force: true });
       await checkCompanionLive();
-      if (!(r && r.ok)) toast('Skip Companion: enable Chrome AI / Web MT in Options, drop .srt, or run install_autostart.bat once');
+      if (!(r && r.ok)) toast('The companion did not start. The video’s own captions and web translation still work.');
     };
+    const langPick = sel([
+      ['', 'Spoken language: detect'],
+      ['mixed', 'Mixed (EN + YUE/ZH)'],
+      ...SS_LANG.SUPPORTED_12.map(code=>[code, SS_LANG.LANG_META[code].label]),
+    ], S.set.asrLangHint || '', (v) => { S.set.asrLangHint = v; save('set'); });
+    const enginePick = sel([
+      ['auto', 'Recogniser: automatic'],
+      ...(isLive && companionHealth?.live_whisper_tiny ? [['live_tiny', 'Whisper tiny · low latency']] : []),
+      ...(isLive && companionHealth?.live_whisper_base ? [['live_base', 'Whisper base']] : []),
+      ['whisper_vulkan', 'Whisper v3 Turbo (Vulkan)'],
+      ['qwen3_vulkan', 'Qwen3-ASR 1.7B (Vulkan)'],
+      ['qwen3_small_vulkan', 'Qwen3-ASR 0.6B (Vulkan, faster)'],
+      ['faster_whisper', 'Faster-Whisper'],
+    ], isLive ? S.set.liveAsrBackend || 'auto' : S.set.asrBackend || 'qwen3_small_vulkan', (v) => { if (isLive) S.set.liveAsrBackend = v; else S.set.asrBackend = v; save('set'); });
+    const frameBtn = (!V.lines.length || V.frameWatch || V.srcProv === 'On-screen text') ? h('button',{
+      type:'button',class:V.frameWatch ? 'ss-act' : '',onclick:toggleFrameCaptions
+    }, V.frameWatch ? 'Stop on-screen captions' : 'Translate on-screen captions') : null;
+    // Everything a first-time viewer does not need sits behind one "More options" line.
+    const more = h('details', {
+      class: 'ss-asr-more', open: asrMoreOpen ? '' : null,
+      ontoggle: (e) => { asrMoreOpen = !!e.currentTarget.open; },
+    },
+      h('summary', {}, 'More options'),
+      h('div', { class: 'ss-asr-row' }, langPick, enginePick),
+      h('div', { class: 'ss-asr-row' },
+        frameBtn,
+        h('button', {
+          type: 'button', title: 'Read subtitles that are part of the picture, from the current frame (O)',
+          onclick: () => openBurnedInOcrModal(),
+        }, 'Read text in the picture'),
+        h('button', { type: 'button', onclick: wakeOrCheck }, statusTxt)));
+    const listening = liveState.active && liveState.mode === 'asr';
+    const watchingCc = liveState.active && liveState.mode === 'dom';
     const card = h('div', { class: 'ss-asr-card' },
-      h('h5', {},
-        h('span', {}, isLive ? 'Live Stream Bilingual Subtitles' : 'Local AI Transcription (Vulkan GPU)'),
-        h('button', { style: { fontSize: '11px', padding: '2px 7px' }, onclick: wakeOrCheck }, statusTxt)),
-      !online ? h('div', { style: { fontSize: '11.5px', opacity: '.78', marginBottom: '7px', lineHeight: '1.38' } },
-        'Zero-setup ways to skip Companion: turn on platform CC, drop an .srt/.vtt file on the player, or use Free Web MT / Chrome Built-in AI in Options. Companion is only for raw audio ASR & Hardsub OCR.') : null,
-      h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '7px' } },
-        sel([
-          ['', 'Lang: Auto-detect'],
-          ['mixed', 'Mixed (EN + YUE/ZH)'],
-          ...SS_LANG.SUPPORTED_12.map(code=>[code, SS_LANG.LANG_META[code].label]),
-        ], S.set.asrLangHint || '', (v) => { S.set.asrLangHint = v; save('set'); }),
-        sel([
-          ['auto', isLive ? 'Automatic live captions' : 'Engine: Auto Vulkan GPU'],
-          ...(isLive && companionHealth?.live_whisper_tiny ? [['live_tiny', 'Whisper tiny · low latency']] : []),
-          ...(isLive && companionHealth?.live_whisper_base ? [['live_base', 'Whisper base']] : []),
-          ['whisper_vulkan', 'Whisper v3 Turbo (Vulkan)'],
-          ['qwen3_vulkan', 'Qwen3-ASR 1.7B (Vulkan)'],
-          ['qwen3_small_vulkan', 'Qwen3-ASR 0.6B (Vulkan, faster)'],
-          ['faster_whisper', 'Faster-Whisper'],
-        ], isLive ? S.set.liveAsrBackend || 'auto' : S.set.asrBackend || 'qwen3_small_vulkan', (v) => { if (isLive) S.set.liveAsrBackend = v; else S.set.asrBackend = v; save('set'); })),
-      (!V.lines.length || V.frameWatch || V.srcProv === 'On-screen text') ? h('button',{
-        type:'button',class:V.frameWatch ? 'ss-act' : '',onclick:toggleFrameCaptions
-      }, V.frameWatch ? 'Stop on-screen captions' : 'Translate on-screen captions') : null,
+      h('h5', {}, h('span', {}, isLive ? 'Live captions' : 'Subtitles from the audio')),
       isLive
-        ? h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
+        ? h('div', { class: 'ss-asr-row' },
+            !watchingCc ? h('button', {
+              type: 'button', disabled: !!V.dvrMode,
+              onclick: () => startLiveDomObserver(true),
+            }, 'Use the video’s captions') : null,
             h('button', {
-              class: 'ss-teal',
-              disabled: !!V.dvrMode || (liveState.active && liveState.mode === 'asr'),
+              type: 'button', class: 'ss-teal', disabled: !!V.dvrMode || listening,
+              title: online ? 'Recognise the speech on this computer' : 'Needs the companion app',
               onclick: () => startLiveAudioCaptions(),
-            }, (liveState.active && liveState.mode === 'asr') ? 'Listening…' : 'Live bilingual captions'),
+            }, listening ? 'Listening…' : 'Use speech recognition'),
             V.dvrMode ? h('button', {type:'button',disabled:V.returningLive,
               onclick:returnToBroadcast}, 'Back to live') :
               liveState.active && liveReplayStart() !== null ? h('button', {
@@ -5213,36 +5654,26 @@
               type:'button', title:'Hear the last caption in the original broadcast audio',
               onclick:()=>liveState.replayAudio?.(liveState.lastPair || V.lines.at(-1)),
             }, 'Replay last line') : null,
-            h('button', {
-              disabled: !!V.dvrMode, class: (liveState.active && liveState.mode === 'dom') ? 'ss-act' : '',
-              onclick: () => startLiveDomObserver(true),
-            }, (liveState.active && liveState.mode === 'dom') ? 'Watching CC' : 'Watch Live CC'),
-            h('button', {
-              title: 'Capture text directly from video frame (O)',
-              onclick: () => openBurnedInOcrModal(),
-            }, 'Frame OCR'),
-            liveState.active ? h('button', {
-              class: 'ss-act',
+            (liveState.active && !liveState.progressTxt) ? h('button', {
+              type: 'button', class: 'ss-act',
               onclick: () => { stopLiveCaptions(); drawList(); },
-            }, 'Stop Live') : null)
-        : h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
+            }, 'Stop') : null)
+        : h('div', { class: 'ss-asr-row' },
             h('button', {
-              class: 'ss-teal',
+              type: 'button', class: 'ss-teal',
               disabled: asrState.active,
+              title: online ? '' : 'Needs the companion app',
               onclick: () => runLocalASR(true),
-            }, asrState.active ? 'Transcribing…' : 'Transcribe from Playhead'),
+            }, asrState.active ? 'Transcribing…' : 'Transcribe from here'),
             h('button', {
-              disabled: asrState.active,
+              type: 'button', disabled: asrState.active,
               onclick: () => runLocalASR(false),
-            }, 'From 0:00'),
-            h('button', {
-              title: 'Capture hardcoded / burned-in subtitles from current video frame (O)',
-              onclick: () => openBurnedInOcrModal(),
-            }, 'Frame OCR'),
-            asrState.active ? h('button', {
-              class: 'ss-act',
+            }, 'From the start'),
+            (asrState.active && !asrState.progressTxt) ? h('button', {
+              type: 'button', class: 'ss-act',
               onclick: () => { asrState.stopRequested = true; },
-            }, '■ Stop') : null));
+            }, 'Stop') : null),
+      more);
     appendClean(listEl, card);
   };
 
@@ -5306,9 +5737,15 @@
   };
 
   // ---- Tab Renderers ----
+  let listRedrawHeld = false;
+  const releaseListRedraw = () => { if (listRedrawHeld) { listRedrawHeld = false; setTimeout(drawList, 0); } };
   const drawList = () => {
     hidePeek();
     if (!listEl) return;
+    // Do not rebuild the list under an open lyrics picker or while lyrics are being pasted.
+    const focused = document.activeElement;
+    if (focused && listEl.contains(focused) && focused.matches && focused.matches('.ss-lyrics-bar select, .ss-lyrics-paste')) { listRedrawHeld = true; return; }
+    listRedrawHeld = false;
     listEl.textContent = '';
     if (!V) return;
 
@@ -5396,6 +5833,207 @@
   };
 
   let filter1TOnly = false;
+  let legendOpen = false;
+
+  // ---- Song lyrics from LRCLIB (open lyrics database). Asked for only when the viewer presses the button. ----
+  const LYRICS_PROV = 'External lyrics';
+  let extLyrics = null; // { vid, cues, note, label }
+  let lyricChoices = null; // { vid, list, pick } versions LRCLIB offered for this video
+  let lyricsPasteOpen = false;
+  let lyricsDeclined = ''; // video the viewer sent back to its own captions
+  let lyricsTried = ''; // video already looked up automatically
+  let lyricsPasteText = '';
+  let lyricsBusy = false;
+  const videoDuration = () => { const v = video(); return v && Number.isFinite(v.duration) ? v.duration : 0; };
+  const looksLikeSong = () => {
+    if (!V || !V.info || isLiveContext()) return false;
+    const dur = videoDuration();
+    if (dur < 45 || dur > 600) return false;
+    const title = String(V.info.title || '');
+    const author = String(V.info.author || '');
+    if (/-\s*Topic$|VEVO$/i.test(author)) return true;
+    if (/\b(official\s+(music\s+)?video|official\s+audio|lyrics?|lyric\s+video|music\s+video|m\/?v)\b|歌詞|ＭＶ/i.test(title)) return true;
+    return false;
+  };
+  const songQuery = () => {
+    const info = (V && V.info) || {};
+    const raw = String(info.title || document.title || '').replace(/\s*-\s*YouTube$/i, '');
+    const author = String(info.author || '').replace(/\s*-\s*Topic$/i, '').replace(/\s*VEVO$/i, '').replace(/\s+Official(\s+Channel)?$/i, '').trim();
+    const clean = (s) => String(s || '')
+      .replace(/[(\[【][^)\]】]*[)\]】]/g, ' ')
+      .replace(/\b(official\s+)?(music\s+|lyric\s+|lyrics\s+)?(video|audio|mv|m\/v|visualizer)\b/ig, ' ')
+      .replace(/\b(lyrics?|hd|4k|remaster(ed)?)\b/ig, ' ')
+      .replace(/\s{2,}/g, ' ').replace(/^[\s|–—-]+|[\s|–—-]+$/g, '').trim();
+    const quoted = /[「『]([^」』]+)[」』]/.exec(raw);
+    if (quoted) return { artist: clean(raw.slice(0, quoted.index)) || author, track: quoted[1].trim() };
+    const parts = clean(raw).split(/\s+[-–—|]\s+/);
+    if (parts.length >= 2 && parts[0].trim()) return { artist: parts[0].trim(), track: parts.slice(1).join(' ').trim() };
+    return { artist: author, track: clean(raw) };
+  };
+  const parseLrc = (text, dur) => {
+    const rows = [];
+    for (const rawLine of String(text || '').split(/\r?\n/)) {
+      const stamps = [];
+      let rest = rawLine;
+      for (;;) {
+        const m = /^\s*\[(\d{1,3}):(\d{2}(?:[.:]\d{1,3})?)\]/.exec(rest);
+        if (!m) break;
+        stamps.push(Number(m[1]) * 60 + Number(m[2].replace(':', '.')));
+        rest = rest.slice(m[0].length);
+      }
+      const t = rest.replace(/<\d{1,3}:\d{2}(?:\.\d{1,3})?>/g, '').trim();
+      for (const s of stamps) rows.push({ s, t });
+    }
+    rows.sort((a, b) => a.s - b.s);
+    const cues = [];
+    rows.forEach((r, k) => {
+      if (!r.t) return; // an empty row only marks where the line before it ends
+      const next = rows[k + 1] ? rows[k + 1].s : (dur || r.s + 5);
+      const e = Math.max(r.s + 0.6, Math.min(next, r.s + 12));
+      cues.push({ t: r.t, s: r.s, e, d: Math.round((e - r.s) * 1000) / 1000 });
+    });
+    return cues;
+  };
+  const applyExternalLyrics = async (quiet = false) => {
+    if (!V || !extLyrics || extLyrics.vid !== curVidKey()) return;
+    V.syncStoragePrefix = null; V.syncPoints = []; V.syncAnchor = null; V.subOffset = 0;
+    V.lines = extLyrics.cues.map((c) => Object.assign({}, c));
+    V.yueByText = false;
+    V.lang = inferScriptLang(V.lines.slice(0, 8).map((c) => c.t).join(' '), V.lang || S.set.lang);
+    V.L = SS_LANG.get(V.lang);
+    V.cur = -1;
+    V.tr = null;
+    V.aiTr = null;
+    V.trProv = '';
+    V._aiTranslatedFor = '';
+    V.sameTiming = false;
+    V.msg = '';
+    V.srcProv = LYRICS_PROV;
+    const my = ++run;
+    await finishLoadAnalysis(my);
+    if (run === my) { try { maybeAutoTranslate(my); } catch (_) {} }
+    if (!quiet) toast(`${extLyrics.label}: ${V.lines.length} lines` + (extLyrics.note ? ` (${extLyrics.note})` : ''));
+  };
+  const lyricChoiceLabel = (c) => {
+    const d = Math.round(c.duration || 0);
+    return `${c.artist || '?'} – ${c.track || '?'}` + (d ? ` (${Math.floor(d / 60)}:${String(d % 60).padStart(2, '0')})` : '');
+  };
+  const pickLyricChoice = async (k) => {
+    if (!lyricChoices || lyricChoices.vid !== curVidKey()) return;
+    const c = lyricChoices.list[k];
+    const dur = videoDuration();
+    const cues = c ? parseLrc(c.synced, dur) : [];
+    if (cues.length < 4) { toast('That version has no usable timed lines'); return; }
+    lyricChoices.pick = k;
+    const off = dur && c.duration ? Math.round(Math.abs(c.duration - dur)) : 0;
+    extLyrics = { vid: lyricChoices.vid, cues, label: 'Lyrics from LRCLIB', note: off > 3 ? `timing may be off by about ${off} s` : '' };
+    await applyExternalLyrics();
+  };
+  const useExternalLyrics = async (auto = false) => {
+    if (lyricsBusy || !V) return;
+    const view = V;
+    const vid = curVidKey();
+    if (extLyrics && extLyrics.vid === vid) { await applyExternalLyrics(); return; }
+    const q = songQuery();
+    if (!q.track) { if (!auto) toast('Could not read a song title from this video'); return; }
+    lyricsBusy = true;
+    drawList();
+    const res = await bg({ op: 'lyricsLookup', artist: q.artist, track: q.track, duration: videoDuration() });
+    lyricsBusy = false;
+    if (V !== view || curVidKey() !== vid) return;
+    const list = res && res.ok && Array.isArray(res.candidates) ? res.candidates : [];
+    if (!list.length) {
+      drawList();
+      if (!auto) toast(res && res.error === 'network' ? 'Could not reach lrclib.net' : 'No synced lyrics found. You can paste or drop a .lrc file instead.');
+      return;
+    }
+    lyricChoices = { vid, list, pick: -1 };
+    if (auto ? res.sure : res.close) { await pickLyricChoice(0); return; }
+    // An automatic lookup only applies a version whose length matches the video.
+    if (auto) { drawList(); return; }
+    drawList();
+    toast('No version matches this video’s length. Pick one from the list.');
+  };
+  const maybeAutoLyrics = () => {
+    if (S.set.autoLyrics === false || !V || lyricsBusy) return;
+    const vid = curVidKey();
+    if (lyricsDeclined === vid || V.srcProv === LYRICS_PROV) return;
+    const cached = !!(extLyrics && extLyrics.vid === vid);
+    if ((lyricsTried === vid && !cached) || !looksLikeSong()) return;
+    // Captions a person wrote are kept; lyrics replace only auto-captions or a video with none.
+    if (V.lines.length && V.srcProv === 'Human') return;
+    lyricsTried = vid;
+    useExternalLyrics(true);
+  };
+  const usePastedLyrics = async () => {
+    if (!V) return;
+    const cues = parseLrc(lyricsPasteText, videoDuration());
+    if (cues.length < 2) { toast('No timed lines found. Each line needs a time in front, like [00:12.30]'); return; }
+    extLyrics = { vid: curVidKey(), cues, label: 'Your pasted lyrics', note: '' };
+    lyricsPasteOpen = false;
+    await applyExternalLyrics();
+  };
+  const drawLyricsBar = () => {
+    const usingLyrics = V.srcProv === LYRICS_PROV;
+    const choices = lyricChoices && lyricChoices.vid === curVidKey() ? lyricChoices : null;
+    if (!usingLyrics && !choices && !lyricsPasteOpen && !looksLikeSong()) return;
+    const small = { fontSize: '11.5px', padding: '3px 8px' };
+    const picker = choices && choices.list.length > 1 || (choices && choices.pick < 0)
+      ? sel([['-1', usingLyrics ? 'Other versions…' : 'Pick a version…']].concat(choices.list.map((c, k) => [String(k), lyricChoiceLabel(c)])),
+          String(choices.pick), (val) => { const k = parseInt(val, 10); try { document.activeElement.blur(); } catch (_) {} if (k >= 0) pickLyricChoice(k); })
+      : null;
+    if (picker) { picker.className = 'ss-qpill'; picker.style.maxWidth = '190px'; picker.setAttribute('aria-label', 'Lyrics version'); picker.addEventListener('blur', releaseListRedraw); }
+    appendClean(listEl, h('div', { class: 'ss-h ss-lyrics-bar', style: { justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' } },
+      h('span', { style: { fontSize: '11.5px', opacity: '.75' } }, usingLyrics
+        ? ((extLyrics && extLyrics.label) || 'External lyrics') + (extLyrics && extLyrics.note ? ` · ${extLyrics.note}` : '')
+        : 'A song? Auto-captions often mishear lyrics.'),
+      h('span', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
+        picker,
+        !usingLyrics && !choices ? h('button', {
+          class: 'ss-teal', style: small, disabled: lyricsBusy,
+          title: 'Looks the song up on lrclib.net. Only the song title, artist name and video length are sent.',
+          onclick: useExternalLyrics,
+        }, lyricsBusy ? 'Looking…' : 'Use synced lyrics') : null,
+        h('button', {
+          style: small, title: 'Paste timed lyrics (.lrc text) from any source. You can also drop a .lrc file on the video.',
+          onclick: () => { lyricsPasteOpen = !lyricsPasteOpen; drawList(); },
+        }, lyricsPasteOpen ? 'Close' : 'Paste lyrics'),
+        usingLyrics ? h('button', { style: small, onclick: () => { lyricsDeclined = curVidKey(); load(); } }, 'Back to video captions') : null)));
+    if (lyricsPasteOpen) {
+      const box = h('textarea', {
+        class: 'ss-lyrics-paste', rows: '5', spellcheck: 'false',
+        placeholder: 'Paste timed lyrics here. Each line starts with its time, like [00:12.30]',
+        'aria-label': 'Timed lyrics',
+        oninput: (e) => { lyricsPasteText = e.target.value; },
+        onblur: releaseListRedraw,
+        onkeydown: (e) => e.stopPropagation(),
+        onkeyup: (e) => e.stopPropagation(),
+        onkeypress: (e) => e.stopPropagation(),
+      });
+      box.value = lyricsPasteText;
+      appendClean(listEl, h('div', { class: 'ss-lyrics-paste-wrap' }, box,
+        h('button', { class: 'ss-teal', style: small, onclick: usePastedLyrics }, 'Use these lyrics')));
+    }
+  };
+  const drawLegend = () => {
+    const pos = document.documentElement.classList.contains('ss-pos');
+    const row = (cls, sample, text) => h('div', { class: 'ss-lg-row' }, h('span', { class: 'ss-lg-s ' + cls }, sample), h('span', {}, text));
+    return h('details', {
+      class: 'ss-legend', open: legendOpen ? '' : null,
+      ontoggle: (e) => { legendOpen = !!e.currentTarget.open; },
+    },
+      h('summary', {}, 'What do the colours mean?'),
+      pos ? row('ss-lg-n', 'word', 'Noun') : null,
+      pos ? row('ss-lg-v', 'word', 'Verb') : null,
+      pos ? row('ss-lg-a', 'word', 'Adjective') : null,
+      row('ss-lg-learn', 'word', 'A word you marked as learning'),
+      row('ss-lg-rare', 'word', 'A rare word'),
+      row('ss-lg-next', 'word', 'A good word to learn next'),
+      row('ss-lg-fe', 'two words', 'An idiom or set phrase. Click it for the meaning. The line colour shows the kind of phrase'),
+      row('ss-lg-fe ss-lg-thick', 'two words', 'A phrase you have met several times in what you watched'),
+      h('div', { class: 'ss-lg-row' }, h('span', { class: 'ss-1t-badge' }, '1 new'), h('span', {}, 'A line with only one new word or phrase')));
+  };
+
   const drawLinesTab = () => {
     const isPro = S.set.uiMode === 'pro';
     if (fitCardOpen) drawVideoFitCard();
@@ -5408,12 +6046,12 @@
     if (asrState.active && asrState.progressTxt) {
       appendClean(listEl, h('div', { class: 'ss-progress' },
         h('span', {}, asrState.progressTxt),
-        h('button', { class: 'ss-act', onclick: () => { asrState.stopRequested = true; } }, '■ Stop')));
+        h('button', { class: 'ss-act', onclick: () => { asrState.stopRequested = true; } }, 'Stop')));
     }
     if (liveState.active && liveState.progressTxt) {
       appendClean(listEl, h('div', { class: 'ss-progress' },
         h('span', {}, liveState.progressTxt),
-        h('button', { class: 'ss-act', onclick: () => { stopLiveCaptions(); drawList(); } }, 'Stop Live')));
+        h('button', { class: 'ss-act', onclick: () => { stopLiveCaptions(); drawList(); } }, 'Stop')));
     }
 
     if (!V.lines.length || V.srcProv === 'On-screen text' || V.frameWatch || V.srcProv === 'YT Auto' || asrState.active || isLiveContext()) {
@@ -5428,6 +6066,8 @@
       }
     }
 
+    drawLyricsBar();
+    if (V.lines.length) appendClean(listEl, drawLegend());
     const hasSharedTr = !!(V.tr && !V.sameTiming && V.lines.length > 1);
     if (V.lines.length && (isPro || V.lines.length > 8 || listFilter)) {
       appendClean(listEl, h('div', { class: 'ss-h' },
@@ -5445,9 +6085,9 @@
         }, 'Merge clauses') : null,
         (V.analysis && V.analysis.gold1TLines && V.analysis.gold1TLines.length > 0) ? h('button', {
           class: 'ss-qpill' + (filter1TOnly ? ' ss-act' : ''),
-          title: 'Show only i+1 Gold Sentences with exactly 1 unknown word or target idiom (Migaku 1T standard)',
+          title: 'Show only the lines that have exactly one new word or phrase. These are the easiest to learn from.',
           onclick: () => { filter1TOnly = !filter1TOnly; drawList(); },
-        }, `★ 1T (${V.analysis.gold1TLines.length})`) : null));
+        }, `1 new word (${V.analysis.gold1TLines.length})`) : null));
     }
     if (V.lines.length) {
       const sumCard = renderSummaryCard();
@@ -5541,9 +6181,13 @@
       h('span', { class: 'ss-t' }, fmt(ln.s)),
       h('span', { style: { flex: '1' } },
         renderLineTokens(i, ln, false),
-        (row1T && row1T.is1T) ? h('span', { class: 'ss-1t-badge', title: `1T i+1 sentence · target: ${row1T.display || row1T.target}` }, '1T ★') : null,
+        (row1T && row1T.is1T) ? h('span', { class: 'ss-1t-badge', title: `Good line to learn from: only one new word or phrase (${row1T.display || row1T.target})` }, '1 new') : null,
         ln.lineLang && S.set.asrLangHint === 'mixed' ? h('span', { class: 'ss-badge', style: { marginLeft: '6px', fontSize: '10px' } }, ln.lineLang.toUpperCase()) : null,
-        lowConf ? h('span', { class: 'ss-badge', style: { marginLeft: '6px' } }, 'low-conf ASR') : null,
+        // The mark only helps when it singles out a few lines; a recogniser that is unsure of most lines gets no marks.
+        (lowConf && V.lines.filter((x) => x.conf != null && x.conf < 0.55).length < V.lines.length * 0.3) ? h('span', {
+          class: 'ss-badge', style: { marginLeft: '6px' },
+          title: 'The speech recogniser was not sure it heard this line right',
+        }, 'may be misheard') : null,
         tr ? h('span', { class: 'ss-tr' + (trRepeat ? ' ss-tr-rep' : ''), title: trRepeat ? 'Same translation line as above' : null }, tr) : null,
         (() => { const t2 = tr2For(ln); return t2 && t2 !== tr ? h('span', { class: 'ss-tr ss-tr3' }, t2) : null; })(),
         aiTr && aiTr !== tr ? h('span', { class: 'ss-tr-dual' }, `${V.aiTrProv || 'AI'}: ${aiTr}`) : null)));
@@ -5800,25 +6444,31 @@
     // 1. Multi-layer Formulaic Expressions (Idioms/Proverbs · Frames/Patterns · Slang/Social · Collocations + Cross-Lingual eq)
     const allItems = an.allFEs || an.targetFEs || [];
     const bucketOf = (fe) => fe.bucket || (SS_IDIOMS.classifyLayer ? SS_IDIOMS.classifyLayer(fe.layer, fe.type) : 'idiom');
-    const counts = { all: allItems.length, idiom: 0, frame: 0, slang: 0, colloc: 0, play: 0 };
+    const counts = { all: allItems.length, idiom: 0, frame: 0, slang: 0, colloc: 0, play: 0, quote: 0, codemix: 0 };
     for (const fe of allItems) {
       counts[bucketOf(fe)] = (counts[bucketOf(fe)] || 0) + 1;
       if (fe.play) counts.play++;
+      if ((fe.isQuote || fe.bucket === 'quote') && bucketOf(fe) !== 'quote') counts.quote++;
+      if ((fe.codeMix || fe.bucket === 'codemix') && bucketOf(fe) !== 'codemix') counts.codemix++;
     }
     if (feLayerFilter !== 'all' && !counts[feLayerFilter]) feLayerFilter = 'all';
 
     const fq = feSearchQuery.trim().toLowerCase();
     const filteredFEs = allItems.filter((fe) => {
       if (feLayerFilter === 'play') { if (!fe.play) return false; }
+      else if (feLayerFilter === 'quote') { if (!(fe.isQuote || bucketOf(fe) === 'quote')) return false; }
+      else if (feLayerFilter === 'codemix') { if (!(fe.codeMix || bucketOf(fe) === 'codemix')) return false; }
       else if (feLayerFilter !== 'all' && bucketOf(fe) !== feLayerFilter) return false;
       if (!fq) return true;
       const m = bestFeMeaning(fe).toLowerCase();
       return (fe.display || '').toLowerCase().includes(fq)
         || (fe.reading || '').toLowerCase().includes(fq)
+        || (fe.author || '').toLowerCase().includes(fq)
+        || (fe.work || '').toLowerCase().includes(fq)
         || m.includes(fq);
     });
 
-    const bucketLabels = { idiom: 'Idiom', frame: 'Frame', slang: 'Slang/Social', colloc: 'Collocation', play: 'Playful' };
+    const bucketLabels = { idiom: 'Idiom', frame: 'Frame', slang: 'Slang/Social', colloc: 'Collocation', play: 'Playful', quote: 'Famous line', codemix: 'Code-mix' };
     appendClean(listEl, h('div', { class: 'ss-card' },
       h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } },
         h('h5', { style: { margin: 0 } }, `Formulaic expressions in this video (${allItems.length})`),
@@ -5828,7 +6478,7 @@
           onclick: () => { S.set.hideBundleUnderlines = !S.set.hideBundleUnderlines; save('set'); applyVisualPrefs(); drawList(); },
         }, S.set.hideBundleUnderlines ? 'Video: Idioms only' : 'Video: All layers')),
       allItems.length > 0 ? h('div', { class: 'ss-layer-bar' },
-        ...[['all', 'All'], ['idiom', 'Idioms'], ['frame', 'Frames'], ['slang', 'Slang & Social'], ['colloc', 'Collocations'], ['play', 'Playful']]
+        ...[['all', 'All'], ['idiom', 'Idioms'], ['quote', 'Famous lines'], ['codemix', 'Code-mix'], ['frame', 'Frames'], ['slang', 'Slang & Social'], ['colloc', 'Collocations'], ['play', 'Playful']]
           .filter(([k]) => k === 'all' || counts[k] > 0)
           .map(([k, lbl]) => h('button', {
             class: 'ss-layer-pill' + (feLayerFilter === k ? ' ss-act' : ''),
@@ -5859,6 +6509,9 @@
         const meaning = bestFeMeaning(fe);
         const litNote = (pie && pie.literal_gloss) || fe.lit || '';
         const eqRow = renderEqChips(fe, (first && first.surface) || fe.display);
+        const l1Xfer = (!isLit && !isTrap && SS_IDIOMS.classifyL1Transfer && S.set.tl)
+          ? SS_IDIOMS.classifyL1Transfer(fe, fe.codeMix ? 'en' : V.lang, S.set.tl, V._glossSidecar)
+          : null;
         return h('div', { style: { padding: '7px 0', borderBottom: '1px solid rgba(128,128,128,.14)' } },
           h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' } },
             h('span', {},
@@ -5869,6 +6522,7 @@
               }, fe.display),
               fe.reading && fe.reading !== fe.display ? h('span', { style: { opacity: '.72', fontSize: '12px' } }, ` ${fe.reading}`) : '',
               h('span', { class: `ss-tag-pill ${tagCls}` }, tagLabel),
+              l1Xfer ? h('span', { class: `ss-l1-pill ss-l1-${l1Xfer.kind}`, title: l1Xfer.detail }, l1Xfer.kind === 'congruent' ? '✓ Free L1' : '⚠ L1 trap') : null,
               h('span', { style: { opacity: '.68', fontSize: '11.5px' } }, ` · ${fe.count}×${fe.soundCue ? ' · ' + fe.soundCue : ''}`)),
             h('span', { style: { display: 'flex', gap: '4px', alignItems: 'center' } },
               h('a', { href: dictHref, target: '_blank', rel: 'noopener', style: { fontSize: '11px', color: '#7cc0ff' } }, 'Dict'),
@@ -5892,6 +6546,8 @@
               }, '+Save'))),
           meaning && !(pie && pie.idiomatic_gloss) ? h('div', { style: { fontSize: '12px', color: '#2dd4bf', marginTop: '2px' } }, meaning) : null,
           litNote && !(pie && pie.literal_gloss) ? h('div', { style: { fontSize: '11.5px', opacity: '.76', marginTop: '1px' } }, `Literal: ${litNote}`) : null,
+          (fe.author || fe.work || fe.partner) ? h('div', { class: 'ss-quote-cite' },
+            [fe.author, fe.work].filter(Boolean).join(' · ') + (fe.partner ? ` · Paired: ${fe.partner}` : '')) : null,
           fe.falseFriend ? h('div', { style: { fontSize: '11.5px', color: '#fbbf24', marginTop: '1px' } }, `⚠️ Mandarin contrast: ${fe.falseFriend}`) : null,
           /^Cantonese/.test(fe.type || '') && fe.glossZh && meaning !== fe.glossZh
             ? h('div', { style: { fontSize: '12px', opacity: '.8', marginTop: '1px' } }, `普通話: ${fe.glossZh}`) : null,
@@ -6696,6 +7352,9 @@
 
   const parseDroppedSubtitleText = (rawTxt, fileName) => {
     const low = String(fileName || '').toLowerCase();
+    if (low.endsWith('.lrc') || /^\s*\[\d{1,3}:\d{2}[.:\]]/m.test(String(rawTxt || '').slice(0, 2000))) {
+      return parseLrc(rawTxt, videoDuration());
+    }
     if (low.endsWith('.ass') || low.endsWith('.ssa') || /^\s*\[Script Info\]/i.test(rawTxt)) {
       const cues = [];
       const toSec = (ts) => {
@@ -6723,18 +7382,52 @@
     return [];
   };
 
+  // Clicking the subtitle on the video shows where that line and its translation sit in the side panel.
+  const revealLineInPanel = (i, switchTab = true) => {
+    if (!panel || !listEl || !V || i < 0 || panel.style.display === 'none') return;
+    if (!switchTab && tab !== 'lines') return;
+    const find = () => {
+      const row = listEl.querySelector(`[data-i="${i}"]`);
+      if (row) return row;
+      const sub = listEl.querySelector(`[data-sub-i="${i}"]`);
+      return sub ? sub.closest('.ss-li') : null;
+    };
+    if (tab !== 'lines') { tab = 'lines'; drawHead(); drawList(); }
+    let el = find();
+    if (!el && switchTab && (listFilter || filter1TOnly)) { listFilter = ''; filter1TOnly = false; drawList(); el = find(); }
+    if (!el) return;
+    listFollowPausedUntil = 0;
+    listEl.scrollTop = Math.max(0, el.offsetTop - listEl.offsetTop - listEl.clientHeight / 3);
+    el.classList.remove('ss-flash');
+    void el.offsetWidth;
+    el.classList.add('ss-flash');
+    setTimeout(() => el.classList.remove('ss-flash'), 1900);
+  };
+
   const wireOverlayHoverAndExternalSubDrop = () => {
     if (ov && !ov.__ssHoverBound) {
       ov.__ssHoverBound = true;
+      ov.addEventListener('click', (e) => {
+        const t = e.target;
+        if (t && typeof t.closest === 'function' && t.closest('button, input, select, .ss-ov-drag')) return;
+        // A click on a word also opens its card, so it only marks the row; a click on the translation or the line itself brings the Subtitles list forward.
+        const onWord = !!(t && typeof t.closest === 'function' && t.closest('.ss-w, .ss-fe-anchor'));
+        if (V && V.cur >= 0) revealLineInPanel(V.cur, !onWord);
+      }, true);
+      let hoverPauseTimer = 0;
       ov.addEventListener('mouseenter', () => {
-        if (!S.set.pauseOnSubHover) return;
-        const v = video();
-        if (v && !v.paused) {
-          hoverPausedVideo = true;
-          v.pause();
-        }
+        if (S.set.pauseOnSubHover === false) return;
+        clearTimeout(hoverPauseTimer);
+        hoverPauseTimer = setTimeout(() => {
+          const v = video();
+          if (v && !v.paused && ov.matches(':hover')) {
+            hoverPausedVideo = true;
+            v.pause();
+          }
+        }, 150);
       });
       ov.addEventListener('mouseleave', () => {
+        clearTimeout(hoverPauseTimer);
         if (!hoverPausedVideo || dictOpen) { hoverPausedVideo = false; return; }
         hoverPausedVideo = false;
         const v = video();
@@ -6752,7 +7445,7 @@
       c.addEventListener('drop', async (ev) => {
         const files = ev.dataTransfer && ev.dataTransfer.files;
         if (!files || !files.length) return;
-        const f = Array.from(files).find((x) => /\.(srt|vtt|ass|ssa)$/i.test(x.name || ''));
+        const f = Array.from(files).find((x) => /\.(srt|vtt|ass|ssa|lrc)$/i.test(x.name || ''));
         if (!f) return;
         ev.preventDefault();
         ev.stopPropagation();
@@ -6793,7 +7486,8 @@
     }
   };
 
-  setInterval(() => {
+  const boundSyncVideos = new WeakSet();
+  const syncPlaybackTick = () => {
     if (document.visibilityState === 'hidden') return;
     if (window.__ssComparingScenes) return;
     ensurePlayerBtn();
@@ -6802,10 +7496,18 @@
     const s = getActiveSite();
     if (s && s.isAd && s.isAd()) {
       if (ov && ov.childNodes.length) drawLine(-1);
+      else syncNativeCaptions(false);
       return;
     }
     const v = video();
     if (!v) return;
+    if (!boundSyncVideos.has(v) && typeof v.addEventListener === 'function') {
+      boundSyncVideos.add(v);
+      v.addEventListener('timeupdate', syncPlaybackTick);
+      v.addEventListener('seeked', syncPlaybackTick);
+      v.addEventListener('seeking', () => { autoPauseSeekAt = Date.now(); autoPausedFor = -1; endAutoPause(); });
+      v.addEventListener('play', endAutoPause);
+    }
     if (panel) panel.classList.toggle('ss-playing-calm', !v.paused && !dictOpen && !settingsOpen);
     const liveMode = isLiveContext();
     const rawT = (liveMode && !(Number.isFinite(v.currentTime) && v.currentTime > 0)) ? liveTimeNow() : v.currentTime;
@@ -6819,6 +7521,7 @@
     const t = rawT - subOff(V.lines[i]?.s);
 
     if (!liveMode && runRepeatSection(v,rawT)) return;
+    if (runAutoPause(v, rawT, liveMode)) return;   // stay on the line just heard
 
     // Condensed Playback (MIT asbplayer style): jump directly across unsubtitled gaps >= 2.4s (VOD only)
     if (!liveMode && S.set.condensedPlayback && !v.paused && clipStopAt < 0 && !loopRange && loopIdx < 0) {
@@ -6853,7 +7556,8 @@
     } else if (i >= 0 && S.set.on && ov && !ov.childNodes.length && !V.lines[i].isInstrumental && t <= lineEnd(i) + 1.5) {
       drawLine(i);
     }
-  }, 80);
+  };
+  setInterval(syncPlaybackTick, 80);
 
   let peekKey = null;
   let peekWasPlaying = false;
@@ -6915,9 +7619,20 @@
     if (!V || !V.lines.length || e.ctrlKey || e.metaKey || e.altKey) return;
     const t = e.target;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (e.key === ' ' && autoPauseActive && !e.shiftKey) {
+      // One handler only: without this the site's own Space toggle would pause again.
+      const av = video();
+      if (av && av.paused) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        autoPauseSpaceUp = true;
+        if (!e.repeat) { closeDock(); av.play()?.catch?.(() => {}); }
+        return;
+      }
+    }
     let k = e.key.toLowerCase();
     if (S.set.arrowKeys && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) k = e.key === 'ArrowLeft' ? 'a' : 'd';
-    if (!'asdwerlcb[]12'.includes(k) || k.length !== 1) return;
+    if (!'asdwerlcb[]12q'.includes(k) || k.length !== 1) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     if (e.repeat) return;
@@ -6959,6 +7674,8 @@
       toast(`Looping lines L${startLi + 1}–L${c + 1} (L to stop)`);
     } else if (k === 'b') {
       cycleBlurMode();
+    } else if (k === 'q') {
+      setAutoPause(!S.set.autoPause);
     } else if (k === '1' || k === '2') {
       if (v) {
         S.set.smartSpeedFlow = false;
@@ -7003,6 +7720,12 @@
 
   document.addEventListener('keyup', (e) => {
     const k = e.key.toLowerCase();
+    if (e.key === ' ' && autoPauseSpaceUp) {
+      autoPauseSpaceUp = false;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
     if (peekKey && k === peekKey) {
       clearTimeout(peekTimer);
       const v = video();
@@ -7043,7 +7766,8 @@
     const tokenLang = !isCjk ? norm : '';
     const tlNorm = normLangCode(S.set.tl || 'en');
     const needReadDict = /^(ja|zh|yue|ko|tl|ru)$/.test(norm);
-    const [bands, ranks, feJson, formsJson, glossSidecar, readJson, glStore] = await Promise.all([
+    const hasAsciiMix = /^(?:yue|tl|zh|ja|ko)$/.test(norm) && V.lines.some((l) => /[A-Za-z]{2,}\s+[A-Za-z]{2,}/.test(l.t || ''));
+    const [bands, ranks, feJson, formsJson, glossSidecar, readJson, glStore, quotesJson, cmFeJson, cmRanksJson, cmGlossJson] = await Promise.all([
       loadData(`bands_${rankKey}.json`),
       loadData(`ranks_${rankKey}.json`),
       tokenLang ? loadData(`fe_${tokenLang}.json`) : Promise.resolve(null),
@@ -7051,6 +7775,10 @@
       loadNxnSidecar(norm, tlNorm),
       needReadDict ? loadData(`read_${norm}.json`) : Promise.resolve(null),
       SS_STORE.getGlossary(curVidKey(), V.info.channelId),
+      loadData(`quotes_${norm}.json`),
+      hasAsciiMix ? loadData('fe_en.json') : Promise.resolve(null),
+      hasAsciiMix ? loadData('ranks_en.json') : Promise.resolve(null),
+      hasAsciiMix ? loadData('fe_en_gloss.json') : Promise.resolve(null),
     ]);
     if (myRun !== run) return;
 
@@ -7089,9 +7817,20 @@
       feIndex = SS_IDIOMS.buildCjkIndex(await Promise.all(cjkFiles.map(loadData)));
     }
     if (myRun !== run) return;
+    const quoteIndex = quotesJson && SS_IDIOMS.buildQuoteIndex ? SS_IDIOMS.buildQuoteIndex(quotesJson) : null;
+    let codeMixIndex = null;
+    if (hasAsciiMix && cmFeJson) {
+      const cmRanks = (cmRanksJson && cmRanksJson.items && typeof cmRanksJson.items === 'object' && !Array.isArray(cmRanksJson.items)) ? cmRanksJson.items : cmRanksJson;
+      if (cmRanks && SS_LANG.setLexicon) SS_LANG.setLexicon(cmRanks);
+      codeMixIndex = SS_IDIOMS.buildFeIndex(cmFeJson, cmRanks || null, 'en');
+    }
     V.analysis = SS_IDIOMS.analyzeVideo(activeLines, V.L, V.lang || 'en', normBands || null, normRanks || null, S.words, feIndex, {
       coverThreshold: S.set.coverThreshold || 0.85,
       vocabLevel: curVocabLevel(V.lang || 'en'),
+      quoteIndex,
+      codeMixIndex,
+      codeMixLang: codeMixIndex ? SS_LANG.get('en') : null,
+      enGlossMap: (cmGlossJson && cmGlossJson.items) || (V._enGloss && V._enGloss.items) || null,
     });
     if (base === 'en' && V._enGloss && V._enGloss.items) {
       for (const fe of V.analysis.allFEs || []) {
@@ -7142,7 +7881,7 @@
 
   const maybeAutoTranslate = (myRun) => {
     if (myRun !== run || !V || !V.lines.length || V.loadingPublisherPair || S.set.autoAiTranslate === false) return;
-    const hasCompMt = !!(companionHealth && companionHealth.plamo);
+    const hasCompMt = localMtChosen();
     const subSvc = (S.set.sceneServices && S.set.sceneServices.subtitle) || 'auto';
     if (!hasCompMt && subSvc === 'auto' && V.tr && V.tr.length) return;   // keep existing translation unless Local AI or explicit scene service is active
     const tl = S.set.tl;
@@ -7202,9 +7941,7 @@
       ['it', 'Italian'],
       ['ru', 'Russian'],
       ['tl', 'Tagalog (Filipino)'],
-      ['vi', 'Vietnamese'],
-      ['th', 'Thai'],
-    ];
+    ].concat(globalThis.SS_WEB_TARGETS || []);
     const ytTlOpts = (info.tlangs || []).map((t) => [t.lang, t.name]);
     const rawTlOpts = ytTlOpts.length
       ? ytTlOpts.concat(DEFAULT_TL_OPTS.filter(([code]) => !ytTlOpts.some(([yc]) => yc.toLowerCase() === code.toLowerCase())))
@@ -7247,7 +7984,7 @@
       if (isLive) {
         V.lang = info.lang || activeSite.defaultLang || S.set.asrLangHint || '';
         V.L = SS_LANG.get(V.lang);
-        V.msg = `Live stream ready on ${activeSite.name} — watching CC automatically, or choose Live bilingual captions for audio recognition.`;
+        V.msg = `Live stream: ${activeSite.name}’s captions appear here as they are spoken.`;
         startLiveDomObserver(false);
         applyVisualPrefs();
         drawHead();
@@ -7258,6 +7995,7 @@
       applyVisualPrefs();
       drawHead();
       drawList();
+      try { maybeAutoLyrics(); } catch (_) {}
       return;
     }
 
@@ -7320,6 +8058,7 @@
     if (!lines?.length) {
       V.msg = `Could not fetch subtitles from ${activeSite.name}. Drop a subtitle file on the video (for example, episode.ko.srt), enable native captions and reload, or transcribe the audio above.`;
       drawList();
+      try { maybeAutoLyrics(); } catch (_) {}
       return;
     }
 
@@ -7348,7 +8087,7 @@
         if (tr) { V.humanTr = tr; V.trProv = 'Human'; V.sameTiming = false; }
       }
       const subSvc = (S.set.sceneServices && S.set.sceneServices.subtitle) || 'auto';
-      const aiWillRun = S.set.autoAiTranslate !== false && ((companionHealth && companionHealth.plamo) || subSvc === 'free_web' || subSvc === 'browser_api' || subSvc === 'custom_openai');
+      const aiWillRun = S.set.autoAiTranslate !== false && (localMtChosen() || subSvc === 'free_web' || subSvc === 'browser_api' || subSvc === 'custom_openai');
       const preferCustomAi = S.set.preferCustomYtMt !== false && aiWillRun;
       if (!tr && pick.translatable && !preferCustomAi) {
         tr = await ask('subs', { videoId: info.videoId, trackId: pick.id, track: pick, tlang: resolveTargetLang(tl, ytTlOpts), mergeClauses: S.set.mergeClauses !== false }, 20000);
@@ -7366,11 +8105,27 @@
     V.previewRequests = new WeakSet();
     V.previewTranslations = new WeakMap();
     V.allowPreviewTranslation = !!(tl && !V.tr?.length && S.set.autoAiTranslate !== false && !sameTranslationLanguage(tl, V.yueByText ? 'yue' : V.lang));
-    if (V.cur >= 0) drawLine(V.cur);
+    // Immediately sync the current playhead cue & prefetch upcoming lookahead translations without waiting for full analysis
+    const vNow = video();
+    if (vNow && Number.isFinite(vNow.currentTime)) {
+      const curIdx = indexAt(vNow.currentTime, true);
+      if (curIdx >= 0) {
+        V.cur = curIdx;
+        drawLine(curIdx);
+        markCur(curIdx);
+      }
+    } else if (V.cur >= 0) {
+      drawLine(V.cur);
+    }
+    if (V.allowPreviewTranslation && V.lines.length) {
+      const pIdx = Math.max(0, V.cur >= 0 ? V.cur : 0);
+      if (V.lines[pIdx]) void translateVisibleCue(V.lines[pIdx], pIdx);
+    }
     await analysisReady;
     if (my !== run) return;
     maybeAutoTranslate(my);
     loadThirdLang(my, info, pick);
+    try { maybeAutoLyrics(); } catch (_) {}
   };
 
   // Third subtitle language: a human track in that language, else YouTube's own translation, else the local translator.
@@ -7404,8 +8159,23 @@
     }
     if (my !== run) return;
     if (tr) { V.tr2 = tr; drawList(); if (V.cur >= 0) drawLine(V.cur); return; }
-    if (!(companionHealth && companionHealth.plamo)) return;
     const vid = info.videoId;
+    if (!localMtChosen()) {
+      // No human or YouTube track for the third language: Google/Microsoft, 40 lines per request.
+      const svc = S.set.sceneServices?.subtitle || '';
+      if (svc && svc !== 'free_web' && svc !== 'auto') return;
+      const src = V.lines, out = src.map((l) => ({ s: l.s, d: l.d || 0, t: '' }));
+      for (let a = 0; a < src.length; a += 40) {
+        const slice = src.slice(a, a + 40);
+        const r = await bg({ op: 'webTranslate', texts: slice.map((l) => l.t), sl: pick.lang, tl: tl2 });
+        if (my !== run || !V || !V.info || V.info.videoId !== vid || V.lines !== src) return;
+        if (!r || !Array.isArray(r.translations) || !r.translations.length) return;
+        slice.forEach((l, k) => { out[a + k].t = r.translations[k] || ''; });
+        V.tr2 = out; V.tr2Same = true; V.tr2Prov = 'Web MT';
+        drawList(); if (V.cur >= 0) drawLine(V.cur);
+      }
+      return;
+    }
     const out = V.lines.map((l) => ({ s: l.s, d: l.d || 0, t: '' }));
     for (let a = 0; a < V.lines.length; a += 60) {
       const slice = V.lines.slice(a, a + 60);

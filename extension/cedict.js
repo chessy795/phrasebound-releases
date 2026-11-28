@@ -57,6 +57,18 @@
       defs: e.defs.split('/').filter((d) => d && !/^CL:/.test(d)).slice(0, 6),
     }));
   };
+  // Character-by-character conversion, good enough to search a song title in both scripts.
+  self.cedictConvert = async (text, to) => {
+    const src = String(text || '');
+    if (!/[㐀-鿿]/.test(src)) return src;
+    const map = await get();
+    let out = '';
+    for (const ch of src) {
+      const hits = /[㐀-鿿]/.test(ch) ? map.get(ch) : null;
+      out += hits && hits.length ? (to === 'trad' ? hits[0].trad : hits[0].head) : ch;
+    }
+    return out;
+  };
   self.cedictTrad = async (word) => {
     const hits = (await get()).get(String(word || '').trim()) || [];
     return hits.length ? hits[0].trad : '';

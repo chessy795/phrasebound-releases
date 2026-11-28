@@ -21,6 +21,27 @@ const COMPANION_SETUP_URL = 'https://github.com/chessy795/phrasebound-releases/r
     btn.textContent = on ? '✓ Reading aids' : 'Reading aids';
   }
 
+  // The popup sets one service for everything except subtitles, which keep their own choice in Options.
+  const POPUP_SERVICE_SCENES = ['webpage', 'hover', 'selection', 'input'];
+  function syncServiceSelect() {
+    const sel = $('serviceSelect');
+    if (!sel) return;
+    const stored = curSet.sceneServices || {};
+    const values = [...new Set(POPUP_SERVICE_SCENES.map((scene) => stored[scene] || 'free_web'))];
+    let value = values.length === 1 ? values[0] : 'mixed';
+    if (value === 'free_web' && curSet.webMtProvider === 'microsoft') value = 'free_web_ms';
+    const extra = sel.querySelector('[data-extra]');
+    if (extra) extra.remove();
+    if (![...sel.options].some((option) => option.value === value)) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.dataset.extra = '1';
+      option.textContent = value === 'mixed' ? 'Different per use (see Options)' : 'Other (see Options)';
+      sel.appendChild(option);
+    }
+    sel.value = value;
+  }
+
   function saveSet(patch) {
     const stamped = Object.assign({}, patch || {}, { _updatedAt: Date.now() });
     curSet = Object.assign({}, curSet, stamped);
@@ -66,6 +87,7 @@ const COMPANION_SETUP_URL = 'https://github.com/chessy795/phrasebound-releases/r
         const effectiveTl = curSet.tl || 'zh-Hant';
         if ($('tlSelect')) $('tlSelect').value = effectiveTl;
         if (curSet.mtModel && $('modelSelect')) $('modelSelect').value = curSet.mtModel;
+        syncServiceSelect();
         syncModeButtons(curSet.uiMode || 'clean');
         if ($('btnAutoWeb')) {
           const on = curSet.autoTranslateWeb === true;
@@ -134,7 +156,36 @@ const COMPANION_SETUP_URL = 'https://github.com/chessy795/phrasebound-releases/r
     } catch (_) {}
   }
 
+  // Translation-only languages follow the 12 study languages in the list.
+  if ($('tlSelect') && Array.isArray(globalThis.SS_WEB_TARGETS)) {
+    const group = document.createElement('optgroup');
+    group.label = 'More languages (translation only)';
+    for (const [code, name] of globalThis.SS_WEB_TARGETS) {
+      const option = document.createElement('option');
+      option.value = code;
+      option.textContent = `${name} (${code})`;
+      group.appendChild(option);
+    }
+    $('tlSelect').appendChild(group);
+    if (curSet.tl) $('tlSelect').value = curSet.tl;
+  }
   if ($('tlSelect')) $('tlSelect').addEventListener('change', (e) => saveSet({ tl: e.target.value }));
+  if ($('serviceSelect')) $('serviceSelect').addEventListener('change', (e) => {
+    if (!e.target.value || e.target.value === 'mixed') return;
+    const next = Object.assign({}, curSet.sceneServices || {});
+    const web = e.target.value === 'free_web' || e.target.value === 'free_web_ms';
+    for (const scene of POPUP_SERVICE_SCENES) next[scene] = web ? 'free_web' : e.target.value;
+    const patch = { sceneServices: next };
+    if (web) patch.webMtProvider = e.target.value === 'free_web_ms' ? 'microsoft' : 'google';
+    saveSet(patch);
+    // Microsoft needs the user's own key; Options is where it is entered.
+    if (e.target.value === 'free_web_ms') {
+      chrome.storage.local.get(['ss_ms_translator'], (r) => {
+        if (!(r && r.ss_ms_translator && r.ss_ms_translator.key)) chrome.runtime.openOptionsPage();
+      });
+    }
+    syncServiceSelect();
+  });
   if ($('modelSelect')) $('modelSelect').addEventListener('change', (e) => saveSet({ mtModel: e.target.value }));
   if ($('btnModeClean')) $('btnModeClean').addEventListener('click', () => saveSet({ uiMode: 'clean' }));
   if ($('btnModePro')) $('btnModePro').addEventListener('click', () => saveSet({ uiMode: 'pro' }));
@@ -161,7 +212,17 @@ const COMPANION_SETUP_URL = 'https://github.com/chessy795/phrasebound-releases/r
     saveSet({ webReaderAid: next, posColors: next, readingAid: next ? mode : 'off' });
     syncReadingAidButton();
   });
-  if ($('btnRegionOcr')) $('btnRegionOcr').addEventListener('click', () => { sendToActiveTab({ op: 'ssStartRegionOcr' }); window.close(); });
+  if ($('btnRegionOcr')) $('btnRegionOcr').addEventListener('click', () => { 
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs && tabs[0];
+      if (!tab || tab.id == null) return;
+      // The lookup stack runs only on the video sites unless the user opted in; inject it here (activeTab) first.
+      chrome.runtime.sendMessage({ op: 'pbEnsureSelect', tabId: tab.id, frameId: 0 }, () => {
+        void chrome.runtime.lastError;
+        sendToActiveTab({ op: 'ssStartRegionOcr' }); window.close();
+      });
+    });
+  });
   if ($('btnMediaCatalogue')) $('btnMediaCatalogue').addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('media-catalogue.html') });
   });

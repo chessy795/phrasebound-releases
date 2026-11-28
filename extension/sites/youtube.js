@@ -51,7 +51,8 @@
     },
     controlsTarget: () => {
       const pc = getPlayerEl();
-      return pc && pc.querySelector('.ytp-right-controls');
+      // Left side, away from YouTube's own captions and settings buttons.
+      return pc && (pc.querySelector('.ytp-left-controls') || pc.querySelector('.ytp-right-controls'));
     },
     inlineSidebar: () => document.querySelector('#secondary-inner') || document.querySelector('#secondary'),
     rawVideoId: (loc) => {

@@ -13,9 +13,11 @@
     <div class="ti-controls">
       <label class="ti-lang">Language <select id="lang"></select></label>
       <label class="ti-filter" id="playWrap" hidden><input type="checkbox" id="playOnly"> <span id="playLbl">Playful only</span></label>
+      <label class="ti-filter" id="quoteWrap" hidden><input type="checkbox" id="quoteOnly"> <span id="quoteLbl">Famous lines</span></label>
     </div>
     <p id="stat" class="ti-stat"></p>
-    <p class="ti-note">Ranked by how often each expression is said in YouTube videos (captions and on-screen subtitles, counted per million <span id="unit">words</span>). Films and TV are shown for comparison. Counts include some literal uses.</p>
+    <p class="ti-note" id="note">Ranked by how often each expression is said in YouTube videos (captions and on-screen subtitles, counted per million <span id="unit">words</span>). Films and TV are shown for comparison. Counts include some literal uses.</p>
+    <div id="quoteCompare" class="ti-compare" hidden></div>
     <ol id="list" class="ti-list"></ol>
     <button type="button" id="more" class="ti-more">Show 100 more</button>
   </main>

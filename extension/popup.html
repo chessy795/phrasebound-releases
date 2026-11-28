@@ -41,6 +41,14 @@
           <option value="tl">Tagalog / Filipino (tl)</option>
         </select>
       </label>
+      <label class="pp-field">
+        <span class="pp-lbl">Translate with</span>
+        <select id="serviceSelect" title="Applies to pages, hover, selections and text boxes. Subtitles keep their own setting in Options.">
+          <option value="free_web">Google Translate (instant)</option>
+          <option value="free_web_ms">Microsoft Translator (your key)</option>
+          <option value="auto">Local AI (needs the companion)</option>
+        </select>
+      </label>
     </section>
 
     <section class="pp-grid" aria-label="Main actions">
@@ -129,6 +137,7 @@
       <button type="button" class="pp-link-btn" id="btnOptions" title="Open Phrasebound Options">Options</button>
     </footer>
   </div>
+  <script src="web-targets.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

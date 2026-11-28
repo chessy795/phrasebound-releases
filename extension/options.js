@@ -4,8 +4,8 @@
   const $ = (id) => document.getElementById(id);
 
   const SERVICE_CHOICES = [
-    ['auto', 'Automatic (local, browser, then web)'],
-    ['free_web', 'Use the web service first'],
+    ['free_web', 'Web service (default, instant)'],
+    ['auto', 'Local AI first (then browser, then web if allowed)'],
     ['browser_api', 'Chrome Built-in Translator (On-device)'],
     ['local_plamo2b', 'Local GPU: PLaMo 3 2B (Default)'],
     ['local_index2b', 'Local GPU: Index 2B'],
@@ -24,7 +24,6 @@
   const WEB_SHORTCUTS = [
     ['article', 'Article Bilingual', 'a'],
     ['full', 'Full-Page Bilingual', 'p'],
-    ['compare', 'Compare translation models', 'd'],
     ['input', 'Translate input text', 't'],
     ['view', 'Toggle translation-only view', 'b'],
     ['glosses', 'Toggle study glosses', 'i'],
@@ -110,7 +109,7 @@
         opt.textContent = label;
         sel.appendChild(opt);
       }
-      sel.value = (services && services[scene]) || 'auto';
+      sel.value = (services && services[scene]) || 'free_web';
       sel.onchange = () => {
         const next = Object.assign({}, curSet.sceneServices || {}, { [scene]: sel.value });
         saveSet({ sceneServices: next });
@@ -381,6 +380,19 @@
   }
 
   function bindControls() {
+    if ($('optTl') && Array.isArray(globalThis.SS_WEB_TARGETS) && !$('optTl').querySelector('optgroup[data-more]')) {
+      const group = document.createElement('optgroup');
+      group.label = 'More languages (translation only)';
+      group.dataset.more = '1';
+      for (const [code, name] of globalThis.SS_WEB_TARGETS) {
+        const option = document.createElement('option');
+        option.value = code;
+        option.textContent = `${name} (${code})`;
+        group.appendChild(option);
+      }
+      $('optTl').appendChild(group);
+      if (curSet.tl) $('optTl').value = curSet.tl;
+    }
     if ($('optTl')) $('optTl').onchange = (e) => saveSet({ tl: e.target.value });
     if ($('optMtModel')) $('optMtModel').onchange = (e) => saveSet({ mtModel: e.target.value });
     if ($('companionUrlInput')) $('companionUrlInput').onchange = (e) => saveSet({ companionUrl: e.target.value.trim() || 'http://127.0.0.1:8787' });
@@ -414,13 +426,42 @@
       $('saveGlossary').onclick = saveTranslationGlossary;
     }
 
+    // Optional access to all websites (Chrome Web Store: the manifest asks only for the video sites).
+    const ALL_SITES = { origins: ['https://*/*', 'http://*/*'] };
+    if ($('chkAllSites') && chrome.permissions) {
+      chrome.permissions.contains(ALL_SITES, (has) => { $('chkAllSites').checked = !!has; });
+      $('chkAllSites').onchange = async (e) => {
+        const want = e.target.checked;
+        let ok = false;
+        try { ok = want ? await chrome.permissions.request(ALL_SITES) : await chrome.permissions.remove(ALL_SITES); } catch (_) {}
+        if (!ok) e.target.checked = !want;
+      };
+    }
+    // A custom AI endpoint needs host access to its own origin (asked for when the user saves or tests it).
+    async function requestCustomOrigin(baseUrl) {
+      try {
+        const u = new URL(baseUrl);
+        if (!/^https?:$/.test(u.protocol) || !chrome.permissions) return true;
+        const o = { origins: [u.protocol + '//' + u.hostname + '/*'] };
+        return (await chrome.permissions.contains(o)) || (await chrome.permissions.request(o));
+      } catch (_) { return false; }
+    }
+
     for (const id of ['customBaseUrl', 'customModel', 'customApiKey']) {
-      if ($(id)) $(id).onchange = () => saveSet({ customApi: readCustomInputs() });
+      if ($(id)) $(id).onchange = () => {
+        const custom = readCustomInputs();
+        saveSet({ customApi: custom });
+        if (id === 'customBaseUrl' && custom.baseUrl) requestCustomOrigin(custom.baseUrl);
+      };
     }
     if ($('btnTestCustom')) {
       $('btnTestCustom').onclick = async () => {
         const custom = readCustomInputs();
         saveSet({ customApi: custom });
+        if (custom.baseUrl && !(await requestCustomOrigin(custom.baseUrl))) {
+          if ($('customStatus')) $('customStatus').textContent = 'Access to this server was not allowed. Click Test again and choose Allow.';
+          return;
+        }
         if ($('customStatus')) $('customStatus').textContent = 'Verifying connection…';
         const res = await sendBg({ op: 'customTranslate', text: 'Hello world', tl: curSet.tl || 'zh-Hant', customApi: custom });
         if ($('customStatus')) {

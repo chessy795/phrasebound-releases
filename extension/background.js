@@ -128,6 +128,8 @@ let nativeHostMissingUntil = 0;
 let autoStartCompanionEnabled = true;
 // Local AI switched off in the popup: no requests reach the companion and nothing wakes it (frees the GPU)
 let companionOff = false;
+// Companion killed 2026-11-28: the extension never talks to the local server. Flip to false to bring it back.
+const COMPANION_KILLED = true;
 const isLocalCompanion = () => /^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/.test(companionUrl);
 
 try {
@@ -158,6 +160,7 @@ try {
 } catch (e) {}
 
 async function ensureCompanionRunning(force = false) {
+  if (COMPANION_KILLED) return { ok: false, skipped: true, off: true };
   if (companionOff && !force) return { ok: false, skipped: true, off: true };
   if (!force && (!autoStartCompanionEnabled || Date.now() < nativeHostMissingUntil || Date.now() < nativeWakeCooldownUntil)) {
     return { ok: false, skipped: true };
@@ -882,6 +885,7 @@ async function maybeReloadForUpdate(h) {
 }
 
 async function callCompanion(path, body = null, method = null, timeoutMs = 60000, extraHeaders = null, _retriedWake = false) {
+  if (COMPANION_KILLED) return { ok: false, off: true, killed: true, error: 'Local AI is off' };   // killed: the page hides its Local AI controls
   if (companionOff && isLocalCompanion()) return { ok: false, off: true, error: 'Local AI is off' };
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -1033,6 +1037,7 @@ async function fetchTatoebaExamples(query, lang = 'en', tl = 'en') {
   }
 }
 
+const WEB_MT_REGION_CODES = {"ber-latn": "ber-Latn", "bm-nkoo": "bm-Nkoo", "crh-latn": "crh-Latn", "fa-af": "fa-AF", "fr-ca": "fr-CA", "iu-latn": "iu-Latn", "mni-mtei": "mni-Mtei", "ms-arab": "ms-Arab", "ndc-zw": "ndc-ZW", "pa-arab": "pa-Arab", "pt-pt": "pt-PT", "sat-latn": "sat-Latn"};
 function normWebMtLang(code, fallback = 'en') {
   const c = String(code || '').trim().toLowerCase().replace(/_/g, '-');
   if (!c || c === 'auto') return 'auto';
@@ -1040,25 +1045,70 @@ function normWebMtLang(code, fallback = 'en') {
   if (c === 'zh-hans' || c === 'zh-cn' || c === 'zh') return 'zh-CN';
   if (c === 'fil' || c === 'tgl') return 'tl';
   if (c === 'yue') return 'yue';
+  if (WEB_MT_REGION_CODES[c]) return WEB_MT_REGION_CODES[c];
   return c.split('-')[0] || fallback;
 }
 
-async function fetchGoogleMtOne(text, sl, tl) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 9000);
-  try {
-    const u = 'https://translate.googleapis.com/translate_a/single?client=gtx'
-      + `&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(text)}`;
-    const r = await fetch(u, { signal: ctrl.signal });
-    if (!r.ok) return '';
-    const j = await r.json();
-    if (!Array.isArray(j) || !Array.isArray(j[0])) return '';
-    return j[0].map((seg) => (Array.isArray(seg) && typeof seg[0] === 'string' ? seg[0] : '')).join('');
-  } catch (_) {
-    return '';
-  } finally {
-    clearTimeout(timer);
+// One shared limit on Google requests: several page batches run at once, and a burst gets rate-limited.
+let googleActive = 0;
+const googleWaiters = [];
+let googleLastError = '';
+let googleLastErrorAt = 0;
+let googleBatchDownUntil = 0;
+async function googleSlot(run) {
+  if (googleActive >= 4) await new Promise((resolve) => googleWaiters.push(resolve));
+  googleActive++;
+  try { return await run(); } finally {
+    googleActive--;
+    const next = googleWaiters.shift();
+    if (next) next();
   }
+}
+function noteGoogleFailure(status) {
+  googleLastErrorAt = Date.now();
+  googleLastError = status === 429 ? 'Google Translate is rate-limiting requests (HTTP 429)'
+    : status ? 'Google Translate returned HTTP ' + status
+    : 'Could not reach Google Translate (network or timeout)';
+}
+async function googleGetJson(url, timeoutMs) {
+  return googleSlot(async () => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const r = await fetch(url, { signal: ctrl.signal, credentials: 'omit' });
+      if (!r.ok) { noteGoogleFailure(r.status); return { status: r.status, json: null }; }
+      return { status: 200, json: await r.json() };
+    } catch (_) {
+      noteGoogleFailure(0);
+      return { status: 0, json: null };
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+}
+
+async function fetchGoogleMtOne(text, sl, tl) {
+  const u = 'https://translate.googleapis.com/translate_a/single?client=gtx'
+    + `&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(text)}`;
+  const { json: j } = await googleGetJson(u, 9000);
+  if (!Array.isArray(j) || !Array.isArray(j[0])) return '';
+  return j[0].map((seg) => (Array.isArray(seg) && typeof seg[0] === 'string' ? seg[0] : '')).join('');
+}
+
+// Batch endpoint: one request carries many texts and returns one translation per text, in order.
+const GOOGLE_BATCH_URL = 'https://clients5.google.com/translate_a/t?client=dict-chrome-ex';
+const GOOGLE_BATCH_MAX_URL = 7000;
+async function fetchGoogleMtBatch(texts, sl, tl) {
+  if (googleBatchDownUntil > Date.now()) return null;
+  const u = GOOGLE_BATCH_URL + `&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}`
+    + texts.map((t) => '&q=' + encodeURIComponent(t)).join('');
+  const { status, json: j } = await googleGetJson(u, 6000);
+  if (!Array.isArray(j) || j.length !== texts.length) {
+    // rejected or changed: use the older endpoint for a minute before trying this one again
+    if (status !== 200 || !Array.isArray(j)) googleBatchDownUntil = Date.now() + 60000;
+    return null;
+  }
+  return j.map((v) => (typeof v === 'string' ? v : (Array.isArray(v) && typeof v[0] === 'string' ? v[0] : '')));
 }
 
 // Zero-setup free web MT fallback (no .bat companion required) backed by 2-tier trCache.
@@ -1083,47 +1133,66 @@ async function translateViaGoogleWeb(rawTexts, rawSl = 'auto', rawTl = 'en', fre
   const SEP = '\n[[~SS~]]\n';
   const SEP_RE = /\s*\[\[\s*~\s*SS\s*~\s*\]\]\s*/i;
   const toSave = [];
-  let idxPos = 0;
-  while (idxPos < misses.length) {
-    const chunkIdxs = [];
-    let charBudget = 0;
-    while (idxPos < misses.length && chunkIdxs.length < 18) {
-      const mi = misses[idxPos];
-      const len = arr[mi].length + SEP.length;
-      if (chunkIdxs.length > 0 && charBudget + len > 1600) break;
-      chunkIdxs.push(mi);
-      charBudget += len;
-      idxPos++;
-    }
-    if (chunkIdxs.length === 1) {
-      const i0 = chunkIdxs[0];
-      const tr = await fetchGoogleMtOne(arr[i0], sl, tl);
-      if (tr) { out[i0] = tr; toSave.push({ k: keys[i0], v: tr }); }
-    } else {
-      const joined = chunkIdxs.map((i0) => arr[i0].replace(/\r?\n/g, ' ')).join(SEP);
-      const trAll = await fetchGoogleMtOne(joined, sl, tl);
-      const parts = trAll ? trAll.split(SEP_RE) : [];
-      if (parts.length === chunkIdxs.length) {
-        for (let k = 0; k < chunkIdxs.length; k++) {
-          const tRes = parts[k].trim();
-          if (tRes) { out[chunkIdxs[k]] = tRes; toSave.push({ k: keys[chunkIdxs[k]], v: tRes }); }
-        }
-      } else {
-        await Promise.all(chunkIdxs.map(async (i0) => {
-          const tr = await fetchGoogleMtOne(arr[i0], sl, tl);
-          if (tr) { out[i0] = tr; toSave.push({ k: keys[i0], v: tr }); }
-        }));
+  const keep = (i0, tr) => {
+    const v = String(tr || '').trim();
+    if (v) { out[i0] = v; toSave.push({ k: keys[i0], v }); }
+  };
+  const startedAt = Date.now();
+
+  // Older endpoint: up to 18 texts joined with a separator in one request, split again on return.
+  const runGtxGroup = async (group) => {
+    if (group.length === 1) { keep(group[0], await fetchGoogleMtOne(arr[group[0]], sl, tl)); return; }
+    const joined = group.map((i0) => arr[i0].replace(/\r?\n/g, ' ')).join(SEP);
+    const trAll = await fetchGoogleMtOne(joined, sl, tl);
+    const parts = trAll ? trAll.split(SEP_RE) : [];
+    if (parts.length === group.length) { group.forEach((i0, k) => keep(i0, parts[k])); return; }
+    if (!trAll) return; // rejected or timed out: one request per text would only add to the burst
+    await Promise.all(group.map(async (i0) => keep(i0, await fetchGoogleMtOne(arr[i0], sl, tl))));
+  };
+  const runGtx = async (idxs) => {
+    for (let pos = 0; pos < idxs.length;) {
+      const group = [];
+      let budget = 0;
+      while (pos < idxs.length && group.length < 18) {
+        const len = arr[idxs[pos]].length + SEP.length;
+        if (group.length > 0 && budget + len > 1600) break;
+        group.push(idxs[pos++]);
+        budget += len;
       }
+      await runGtxGroup(group);
     }
+  };
+
+  // Chunks for the batch endpoint: up to 32 texts and a bounded URL (CJK is 9 URL characters each).
+  const chunks = [];
+  const oversize = [];
+  let cur = [];
+  let curLen = 0;
+  for (const mi of misses) {
+    const len = encodeURIComponent(arr[mi]).length + 3;
+    if (len > GOOGLE_BATCH_MAX_URL) { oversize.push(mi); continue; }
+    if (cur.length && (cur.length >= 32 || curLen + len > GOOGLE_BATCH_MAX_URL)) { chunks.push(cur); cur = []; curLen = 0; }
+    cur.push(mi);
+    curLen += len;
   }
+  if (cur.length) chunks.push(cur);
+
+  const runChunk = async (chunkIdxs) => {
+    const got = await fetchGoogleMtBatch(chunkIdxs.map((i0) => arr[i0]), sl, tl);
+    if (got) chunkIdxs.forEach((i0, k) => keep(i0, got[k]));
+    const left = chunkIdxs.filter((i0) => !out[i0]);
+    if (left.length) await runGtx(left);
+  };
+  await Promise.all(chunks.map(runChunk).concat(oversize.length ? [runGtx(oversize)] : []));
   if (toSave.length) trCachePutMany(toSave).catch(() => {});
   const anyHit = out.some((x) => !!x);
-  return { ok: anyHit, translations: out, error: anyHit ? '' : 'Google Translate unavailable' };
+  const missing = misses.some((i0) => !out[i0]);
+  return { ok: anyHit, translations: out, error: missing ? ((googleLastErrorAt >= startedAt && googleLastError) || 'Google Translate returned no translation') : '' };
 }
 
 function normMicrosoftMtLang(code) {
   const lang = normWebMtLang(code);
-  return ({ 'zh-TW': 'zh-Hant', 'zh-CN': 'zh-Hans', tl: 'fil' })[lang] || lang;
+  return ({ 'zh-TW': 'zh-Hant', 'zh-CN': 'zh-Hans', tl: 'fil', iw: 'he', jw: 'jv' })[lang] || lang;
 }
 
 async function translateViaMicrosoft(rawTexts, rawSl, rawTl, credentials, fresh) {
@@ -1217,7 +1286,7 @@ async function translateViaWebEngines(request) {
       providers[index] = provider;
       return false;
     });
-    if (pending.length) error = result.error || names[provider] + ' returned no translation';
+    if (pending.length && !error) error = result.error || names[provider] + ' returned no translation';
   }
   return { ok: translations.some(Boolean), translations, providers,
     provider: [...new Set(providers.filter(Boolean))].map(name => names[name]).join(' + '),
@@ -1359,9 +1428,12 @@ async function fetchImageAsBase64(imgUrl) {
 }
 
 if (typeof chrome !== 'undefined' && chrome.contextMenus && chrome.contextMenus.onClicked) {
-  chrome.contextMenus.onClicked.addListener((info, tab) => {
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const tabId = tab && tab.id;
     const frame = { frameId: info.frameId ?? 0 };
+    if (tabId != null && !(info.menuItemId === 'ss-open-in-reader' && info.selectionText && info.selectionText.trim())) {
+      await pbEnsureSelect(tabId, info.menuItemId === 'ss-crop-ocr' ? 0 : frame.frameId);   // no-op where the lookup stack already runs
+    }
     if (info.menuItemId === 'ss-ocr-image' && tabId != null && info.srcUrl) {
       (async () => {
         const toggled = await new Promise((resolve) => {
@@ -1380,7 +1452,7 @@ if (typeof chrome !== 'undefined' && chrome.contextMenus && chrome.contextMenus.
         const tl = st.tl || 'en';
         const dataUrl = info.srcUrl.startsWith('data:') ? info.srcUrl : await fetchImageAsBase64(info.srcUrl);
         if (!dataUrl) {
-          chrome.tabs.sendMessage(tabId, { op: 'ssShowImageOcrResult', ok: false, srcUrl: info.srcUrl, error: 'Could not read image bytes for translation' }, frame, () => { void chrome.runtime.lastError; });
+          chrome.tabs.sendMessage(tabId, { op: 'ssShowImageOcrResult', ok: false, srcUrl: info.srcUrl, error: 'Could not read this image. If it is hosted on another site, turn on "Word lookup and tools on every website" in Options.' }, frame, () => { void chrome.runtime.lastError; });
           return;
         }
         const b64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
@@ -1712,6 +1784,10 @@ chrome.runtime.onMessage.addListener((m, s, send) => {
   }
   if (['startScenePair', 'startRecallPlaylist', 'readScenePair', 'nextScenePair', 'stopScenePair'].includes(m.op)) {
     compareScenes(m, s).then(send, () => send({ ok: false }));
+    return true;
+  }
+  if (m.op === 'lyricsLookup') {
+    lyricsLookup(m).then(send, () => send({ ok: false, error: 'network' }));
     return true;
   }
   if (m.op === 'getDiscoveredLessons') {
@@ -2114,4 +2190,104 @@ chrome.runtime.onMessage.addListener((m, s, send) => {
     })();
     return true;
   }
+});
+
+
+// Synced song lyrics from LRCLIB (lrclib.net, an open lyrics database, no key).
+// Runs only when the viewer presses "Use synced lyrics". Sends the song title, artist name and length.
+async function lyricsLookup(m) {
+  const track = String(m.track || '').slice(0, 120);
+  const artist = String(m.artist || '').slice(0, 120);
+  const dur = Number(m.duration) || 0;
+  if (!track) return { ok: false, error: 'empty' };
+  // Chinese titles are stored in either script, so ask for the simplified and the traditional spelling too.
+  const pairs = [[artist, track]];
+  if (/[㐀-鿿]/.test(artist + track) && typeof self.cedictConvert === 'function') {
+    for (const to of ['simp', 'trad']) {
+      try {
+        const pair = [await self.cedictConvert(artist, to), await self.cedictConvert(track, to)];
+        if (!pairs.some((p) => p[0] === pair[0] && p[1] === pair[1])) pairs.push(pair);
+      } catch (_) {}
+    }
+  }
+  const seen = new Map();
+  let reached = false;
+  const get = async (params, strict = false) => {
+    try {
+      const r = await fetch('https://lrclib.net/api/search?' + new URLSearchParams(params), { credentials: 'omit', signal: AbortSignal.timeout(6000),
+        // LRCLIB asks apps to name themselves; browsers cannot set User-Agent, so this is its documented substitute.
+        headers: { 'Lrclib-Client': 'Phrasebound ' + chrome.runtime.getManifest().version } });
+      reached = true;
+      const rows = r.ok ? await r.json() : [];
+      for (const x of (Array.isArray(rows) ? rows : [])) {
+        if (x && x.syncedLyrics && !x.instrumental && !seen.has(x.id)) { x._strict = strict; seen.set(x.id, x); }
+      }
+    } catch (_) {}
+  };
+  for (const [a, t] of pairs) if (a) await get({ track_name: t, artist_name: a }, true);
+  if (seen.size < 3) for (const [a, t] of pairs) await get({ q: (a + ' ' + t).trim() });
+  if (seen.size < 3) for (const [, t] of pairs) await get({ track_name: t });
+  if (!seen.size) return { ok: false, error: reached ? 'none' : 'network' };
+  const gap = (x) => Math.abs((x.duration || 0) - dur);
+  // Rows found by title and artist together come first; a loose match has to fit the length almost exactly.
+  // Between equal matches, prefer the one written in the same script as the video's title.
+  const own = (x) => (x.trackName === track ? 0 : 1);
+  const rank = (x) => (x._strict && (!dur || gap(x) <= 20) ? 0 : 1);
+  const rows = Array.from(seen.values()).sort((a, b) => rank(a) - rank(b) || Math.round(gap(a)) - Math.round(gap(b)) || own(a) - own(b)).slice(0, 8);
+  return {
+    ok: true,
+    // A recording of a very different length is most likely another song or another version.
+    close: !dur || gap(rows[0]) <= 20,
+    sure: !!dur && (rank(rows[0]) === 0 || gap(rows[0]) <= 3),
+    candidates: rows.map((x) => ({
+      track: x.trackName || '', artist: x.artistName || '', album: x.albumName || '',
+      duration: x.duration || 0, synced: x.syncedLyrics,
+    })),
+  };
+}
+
+// ---- Opt-in word lookup on every website (Claude, 2026-11-27) ----
+// The manifest only asks for the supported video sites and the lookup APIs. Access to all other websites is an
+// optional permission the user grants in Options; when granted, the select.js lookup stack is registered for every page.
+const PB_ALL_SITES = { origins: ['https://*/*', 'http://*/*'] };
+const PB_SELECT_ID = 'pb-select-all-sites';
+function pbSelectEntry() {
+  const cs = (chrome.runtime.getManifest().content_scripts || []).find((c) => (c.js || []).includes('select.js'));
+  return cs || { js: ['lang.js', 'web-targets.js', 'idioms.js', 'literary.js', 'readings.js', 'storage.js', 'select.js', 'select_mark.js'], matches: [] };
+}
+async function pbSyncAllSitesScript() {
+  if (!chrome.scripting || !chrome.permissions) return;
+  try {
+    const has = await chrome.permissions.contains(PB_ALL_SITES);
+    const reg = await chrome.scripting.getRegisteredContentScripts({ ids: [PB_SELECT_ID] });
+    if (has && !reg.length) {
+      const e = pbSelectEntry();
+      await chrome.scripting.registerContentScripts([{ id: PB_SELECT_ID, js: e.js, matches: PB_ALL_SITES.origins,
+        excludeMatches: e.matches, allFrames: true, runAt: 'document_idle', persistAcrossSessions: true }]);
+    } else if (!has && reg.length) {
+      await chrome.scripting.unregisterContentScripts({ ids: [PB_SELECT_ID] });
+    }
+  } catch (e) { console.warn('[Phrasebound] all-sites script sync failed', e); }
+}
+// Right-click and popup tools work on any page even without the opt-in: activeTab lets us inject the stack on demand.
+async function pbEnsureSelect(tabId, frameId = 0) {
+  if (!chrome.scripting || tabId == null) return false;
+  const target = { tabId, frameIds: [frameId] };
+  try {
+    const [r] = await chrome.scripting.executeScript({ target, func: () => !!globalThis.__PB_SELECT__ });
+    if (r && r.result) return true;
+    await chrome.scripting.executeScript({ target, files: pbSelectEntry().js });
+    return true;
+  } catch (e) { return false; }   // restricted page (store, chrome://) or no activeTab grant
+}
+if (chrome.permissions && chrome.permissions.onAdded) {
+  chrome.permissions.onAdded.addListener(pbSyncAllSitesScript);
+  chrome.permissions.onRemoved.addListener(pbSyncAllSitesScript);
+}
+chrome.runtime.onInstalled.addListener(pbSyncAllSitesScript);
+chrome.runtime.onStartup.addListener(pbSyncAllSitesScript);
+chrome.runtime.onMessage.addListener((m, s, send) => {
+  if (!m || m.op !== 'pbEnsureSelect' || s.id !== chrome.runtime.id) return false;
+  pbEnsureSelect(m.tabId, m.frameId || 0).then((ok) => send({ ok }));
+  return true;
 });

@@ -26,3 +26,5 @@
 - `fe_ko.json`: 2,312 사자성어 (four-character Sino-Korean idioms) with hanja and Korean meanings come from github.com/LiF-Lee/idioms (MIT). `extra.eq.zh` links each one to the same chengyu in fe_zh.
 
 - `gloss_<src>_<ui>.json` (121 files, about 126k entries): built by `_dev/build_nxn_gloss.py`. Equivalents come from English Wiktionary translation tables via Kaikki (CC BY-SA 4.0): a source expression is linked to an English headword sense when it is listed in that sense's translation table, or when its English meaning is that headword. The learner's own-language words from the same table are the gloss. Chinese and Japanese four-character idioms written with the same characters are linked from fe_zh/fe_ja. No model-written text.
+
+- `quotes_<lang>.json` (12 languages) & `quotes_summary.json`: built by `_dev/export_famous_lines.py` from `R:/dict_src/famous_lines/` (MIT `chinese-poetry/chinese-poetry`, CC BY-SA 4.0 Wikiquote & Wikisource, and public domain classics). Ranked by school curriculum inclusion, speech subtitle hits, anthologies, and Wikipedia counts.

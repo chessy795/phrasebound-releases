@@ -75,7 +75,7 @@
     ['en', 'English'], ['zh-Hant', '繁體中文'], ['zh-Hans', '简体中文'], ['yue', '粵語'],
     ['ja', '日本語'], ['ko', '한국어'], ['es', 'Español'], ['fr', 'Français'],
     ['de', 'Deutsch'], ['pt', 'Português'], ['it', 'Italiano'], ['ru', 'Русский'], ['tl', 'Tagalog']
-  ];
+  ].concat(globalThis.SS_WEB_TARGETS || []);
   var cfg = assignObj({}, DEFAULT_CFG);
 
   function webShortcutKey(action) {
@@ -730,7 +730,8 @@
   }
 
   function resolveTranslationRoute(options) {
-    const choice = options.localOnly ? 'local_only' : (cfg.sceneServices[options.scene] || 'auto');
+    // Default is the free web service (instant, needs no local program). Local AI is a choice in Options.
+    const choice = options.localOnly ? 'local_only' : (cfg.sceneServices[options.scene] || 'free_web');
     const localModels = {
       local_plamo2b: 'plamo-2b', local_index2b: 'index-2b',
       local_gemma_e4b: 'gemma-e4b', local_hymt7b: 'hy-mt2-7b'
@@ -1277,6 +1278,9 @@
               misses[wi].result = restoreText(wt, misses[wi].map);
             }
           }
+          if (options.onError && misses.some(function (m) { return m.result === null; })) {
+            options.onError((wr && wr.error) || 'The translation service did not answer');
+          }
           var outWeb = {};
           for (var wj = 0; wj < prepared.length; wj++) outWeb[prepared[wj].id] = prepared[wj].result;
           return outWeb;
@@ -1793,6 +1797,12 @@
     '.ss-fab-menu button:focus-visible, .ss-fab-toggle:focus-visible, .ss-fab-menu summary:focus-visible { outline: 2px solid #38ae97; outline-offset: -2px; }',
     '.ss-fab-primary { background: var(--active); color: var(--accent); font-weight: 700; }',
     '.ss-fab-primary:hover { background: var(--active); text-decoration: underline; }',
+    '.ss-fab-toggle[data-failed="1"] { border-color: #e2726a; box-shadow: 0 0 0 2px #e2726a66, 0 3px 12px #0b162b38; }',
+    '.ss-fab-status { padding: 4px 9px 6px; color: var(--subtle); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }',
+    '.ss-fab-status[hidden], .ss-fab-retry[hidden] { display: none; }',
+    '.ss-fab-status[data-tone="error"] { color: #b3261e; }',
+    '.ss-fab-retry { background: #fdecea; color: #8c1d18; font-weight: 700; }',
+    '.ss-fab-retry:hover { background: #fdecea; text-decoration: underline; }',
     '.ss-fab-language { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 5px 9px; color: var(--subtle); }',
     '.ss-fab-language select { width: 100%; min-width: 0; padding: 5px 7px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 7px; font: inherit; }',
     '.ss-fab-language select:focus-visible { outline: 2px solid #38ae97; outline-offset: -2px; }',
@@ -2267,6 +2277,7 @@
     var fabState = {
       host: null, ball: null, menu: null,
       btnTr: null, btnMode: null, btnScope: null, btnAuto: null, btnNeverAuto: null, btnReadings: null,
+      status: null, btnRetry: null,
       targetLanguage: null,
       side: null, topPx: null, openTimer: null, closeTimer: null
     };
@@ -2338,6 +2349,27 @@
       fabState.ball.setAttribute('aria-label', primaryAction + ' · Phrasebound');
       fabState.ball.title = primaryAction + ' (hover or press ↓ for page tools)';
       fabState.btnTr.textContent = translationAction;
+      if (fabState.status && fabState.btnRetry) {
+        var failedCount = active ? pageModeState.failedBlocks.length : 0;
+        var doneCount = active ? pageModeState.doneCount : 0;
+        var busy = active && (pageModeState.inFlightBatches > 0 || pageModeState.queue.length > 0);
+        var statusText = '';
+        if (failedCount > 0) statusText = doneCount + ' translated, ' + failedCount + ' failed. ' + (pageModeState.lastError || 'Try again.');
+        else if (busy) statusText = 'Translating… ' + doneCount + ' done';
+        else if (doneCount > 0) statusText = doneCount + ' blocks translated';
+        fabState.status.textContent = statusText;
+        fabState.status.hidden = !statusText;
+        fabState.status.setAttribute('data-tone', failedCount > 0 ? 'error' : 'normal');
+        fabState.btnRetry.hidden = failedCount === 0;
+        fabState.btnRetry.textContent = busy ? 'Retrying…' : 'Retry ' + failedCount + ' failed';
+        fabState.btnRetry.disabled = busy;
+        fabState.ball.setAttribute('data-failed', failedCount > 0 ? '1' : '0');
+        if (failedCount > 0 && !busy && !pageModeState.failureShown) {
+          // Show the first failure once; after that the red ring on the button is the reminder.
+          pageModeState.failureShown = true;
+          if (fabState.menu.hidden) { setFloatingMenuVisible(true); return; }
+        }
+      }
       var picker = fabState.targetLanguage;
       var legacyOption = picker.querySelector('[data-saved-target]');
       if (legacyOption && legacyOption.value !== cfg.tl) legacyOption.remove();
@@ -2403,6 +2435,11 @@
         return makeEl(doc, 'button', { type: 'button', text: label, className: 'ss-fab-item' + (extraClass ? ' ' + extraClass : '') });
       };
       var btnTr = mkItem('Translate page', 'ss-fab-primary');
+      var statusLine = makeEl(doc, 'div', { className: 'ss-fab-status', role: 'status', 'aria-live': 'polite' });
+      statusLine.hidden = true;
+      var btnRetry = mkItem('Retry failed blocks', 'ss-fab-retry');
+      btnRetry.hidden = true;
+      btnRetry.addEventListener('click', retryFailedPageBlocks);
       var btnReadings = mkItem('Reading aids', 'ss-fab-readings');
       var btnReader = mkItem('Open Study Reader');
       var btnWake = mkItem('Wake Companion');
@@ -2506,6 +2543,8 @@
       });
 
       menu.appendChild(btnTr);
+      menu.appendChild(statusLine);
+      menu.appendChild(btnRetry);
       menu.appendChild(targetLabel);
       menu.appendChild(btnMode);
       menu.appendChild(btnReadings);
@@ -2633,6 +2672,8 @@
       fabState.btnAuto = btnAuto;
       fabState.btnNeverAuto = btnNeverAuto;
       fabState.btnReadings = btnReadings;
+      fabState.status = statusLine;
+      fabState.btnRetry = btnRetry;
       fabState.targetLanguage = targetPicker;
       syncFloatingFab();
     }
@@ -3493,8 +3534,12 @@
         type: 'button',
         className: 'ss-btn',
         text: 'Explain',
-        title: 'Explain, grammar, register and chunks (runs on your own computer)',
-        onClick: function () { runExplain(selectedText, activeActionMode); }
+        title: 'Ask Google AI Mode about this',
+        onClick: function () {
+          var line = String(popupState.surroundingLine || '').trim();
+          var q = 'Explain "' + selectedText + '"' + (line && line !== selectedText ? ' in: ' + line : '');
+          window.open('https://www.google.com/search?udm=50&q=' + encodeURIComponent(q.slice(0, 1500)), '_blank', 'noopener');
+        }
       });
 
       function runCompare() {
@@ -3620,7 +3665,6 @@
         btnExplain,
         btnExamples,
         btnTranslate,
-        btnCompare,
         btnSaveWord,
         btnMarkKnown,
         btnCopy,
@@ -3785,7 +3829,7 @@
               type: 'button',
               className: 'ss-idiom-chip',
               text: chipText,
-              onClick: function () { if(explicitSelection && remember) recordHighlight(label,selectedText); runExplain(label); }
+              onClick: function () { if(explicitSelection && remember) recordHighlight(label,selectedText); window.open('https://www.google.com/search?udm=50&q=' + encodeURIComponent('Explain "' + label + '"' + (popupState.surroundingLine ? ' in: ' + String(popupState.surroundingLine).slice(0, 1200) : '')), '_blank', 'noopener'); }
             });
             chipsWrap.appendChild(chip);
           })(list[k]);
@@ -3970,13 +4014,11 @@
         });
       }
       // Explain needs a different local model; start it after the translation so the two never queue against each other.
-      var autoExplain = function () { if (!startInCompare && !recallItem && host.isConnected) runExplain(selectedText, 'explain', true); };
+      var autoExplain = function () { if (false && !startInCompare && !recallItem && host.isConnected) runExplain(selectedText, 'explain', true); };
       if (!scanInfo) Promise.resolve(runTranslation()).then(autoExplain, autoExplain);
       else autoExplain();
 
-      if (startInCompare) {
-        runCompare();
-      }
+
     }
 
     function getCleanSelectionInfo() {
@@ -4270,6 +4312,10 @@
       queue: [],
       flushTimer: null,
       inFlightBatches: 0,
+      doneCount: 0,
+      failedBlocks: [],
+      lastError: '',
+      failureShown: false,
       ownedTranslations: new Map(),
       ownedStudyChips: new Set(),
       summary: ''
@@ -4485,6 +4531,10 @@
       if (!replacing) publishEmbeddedScope(null);
       pageModeState.sessionId++;
       pageModeState.inFlightBatches = 0;
+      pageModeState.doneCount = 0;
+      pageModeState.failedBlocks = [];
+      pageModeState.lastError = '';
+      pageModeState.failureShown = false;
       stopOriginalReadings();
       clearWebBlockAids();
       translatedReadingsOverride = null;
@@ -4621,7 +4671,7 @@
         }
       }
 
-      var skipHints = fastPage || (!pageModeState.smartI1 && cfg.sceneServices.webpage === 'free_web');
+      var skipHints = fastPage || (!pageModeState.smartI1 && resolveTranslationRoute({ scene: 'webpage' }).choice === 'free_web');
       var phraseHints = skipHints ? Promise.resolve(null) : sendBgMessage({
         op: 'matchTextIdioms',
         texts: validItems.map(function (v) { return v.rawText; }),
@@ -4708,6 +4758,7 @@
         for (var dk = 0; dk < domKeys.length; dk++) pushGl(domKeys[dk], domainEntityMap[domKeys[dk]]);
 
         var entChanged = false;
+        var batchError = '';
         function showTranslation(item, translated, resMap) {
           if (item.rendered || !item.trDiv.isConnected || pageModeState.sessionId !== sessionId) return;
           item.rendered = true;
@@ -4718,6 +4769,7 @@
             return;
           }
           item.trDiv.removeAttribute('data-ss-loading');
+          pageModeState.doneCount++;
           if (!skipHints) {
             var prevEntCount = Object.keys(domainEntityMap).length;
             extractDomainEntities(item.rawText, translated, domainEntityMap);
@@ -4753,6 +4805,7 @@
           summary: pageModeState.summary,
           glossary: mergedBatchGloss,
           scene: 'webpage',
+          onError: function (message) { batchError = String(message || ''); },
           onCached: function (id, text) {
             var item = activeItems.find(function (candidate) { return candidate.id === id; });
             if (!item || !item.trDiv.isConnected || pageModeState.sessionId !== sessionId) return;
@@ -4763,7 +4816,7 @@
               item.trDiv.removeAttribute('data-ss-loading');
             }
           }
-        }).then(function (resMap) {
+        }).catch(function () { return null; }).then(function (resMap) {
           if (pageModeState.sessionId !== sessionId) return;
           pageModeState.inFlightBatches = Math.max(0, pageModeState.inFlightBatches - 1);
 
@@ -4776,12 +4829,54 @@
             } else {
               if (it.trDiv.parentNode) it.trDiv.parentNode.removeChild(it.trDiv);
               pageModeState.ownedTranslations.delete(it.block);
+              notePageBlockFailed(it.block, batchError);
             }
           }
           if (entChanged) persistDomainEntityCache();
+          syncFloatingFab();
           pumpBatchQueue();
         });
+      }).catch(function () {
+        // Never leave a batch counted as running: the queue would stop for the whole page.
+        if (pageModeState.sessionId !== sessionId) return;
+        pageModeState.inFlightBatches = Math.max(0, pageModeState.inFlightBatches - 1);
+        for (var fi = 0; fi < validItems.length; fi++) {
+          var failedItem = validItems[fi];
+          if (failedItem.rendered) continue;
+          if (failedItem.trDiv.parentNode) failedItem.trDiv.parentNode.removeChild(failedItem.trDiv);
+          pageModeState.ownedTranslations.delete(failedItem.block);
+          notePageBlockFailed(failedItem.block, '');
+        }
+        syncFloatingFab();
+        pumpBatchQueue();
       });
+    }
+
+    // A block that got no translation stays on a list, so the floating menu can report it and retry it.
+    function notePageBlockFailed(block, message) {
+      if (pageModeState.failedBlocks.indexOf(block) < 0) pageModeState.failedBlocks.push(block);
+      if (!fabState.ball && !pageModeState.failureShown) {
+        // No floating button on this page: say it once in a toast instead.
+        pageModeState.failureShown = true;
+        showToast('Phrasebound · Some text was not translated. ' + (message || 'Press the translate shortcut twice to try again.'));
+      }
+      if (message || !pageModeState.lastError) {
+        var choice = resolveTranslationRoute({ scene: 'webpage' }).choice;
+        pageModeState.lastError = message || (choice === 'free_web' || choice === 'custom_openai'
+          ? 'The translation service did not answer'
+          : 'Local AI did not answer. Pick "Web service" in the Phrasebound popup, or start the companion');
+      }
+    }
+    function retryFailedPageBlocks() {
+      var blocks = pageModeState.failedBlocks;
+      pageModeState.failedBlocks = [];
+      pageModeState.lastError = '';
+      for (var i = 0; i < blocks.length; i++) {
+        if (!blocks[i] || !blocks[i].isConnected) continue;
+        pageModeState.translatedSet.delete(blocks[i]);
+        enqueueVisibleBlock(blocks[i]);
+      }
+      syncFloatingFab();
     }
 
     function enqueueVisibleBlock(block) {
@@ -5976,7 +6071,7 @@
           }
         }
 
-        if (matchesKey('compare')) {
+        if (false && matchesKey('compare')) {   // compare-models view removed with the companion
           if (popupState.host && typeof popupState.triggerCompare === 'function') {
             ev.preventDefault();
             ev.stopPropagation();

@@ -8,7 +8,15 @@ h1 { font-size:26px; margin:0 0 12px; }
 .ti-filter { font-size:14px; display:inline-flex; align-items:center; gap:5px; cursor:pointer; user-select:none; color:var(--mut); }
 .ti-filter[hidden] { display:none; }
 .ti-play { font-size:11px; font-weight:600; color:#a21caf; border:1px solid rgba(192,38,211,.35); background:rgba(232,121,249,.12); border-radius:4px; padding:1px 6px; }
-@media (prefers-color-scheme: dark) { .ti-play { color:#f0abfc; border-color:rgba(240,171,252,.38); background:rgba(217,70,239,.14); } }
+.ti-quote { font-size:11px; font-weight:600; color:#92400e; border:1px solid rgba(217,119,6,.38); background:rgba(251,191,36,.16); border-radius:4px; padding:1px 6px; }
+@media (prefers-color-scheme: dark) {
+  .ti-play { color:#f0abfc; border-color:rgba(240,171,252,.38); background:rgba(217,70,239,.14); }
+  .ti-quote { color:#fcd34d; border-color:rgba(251,191,36,.42); background:rgba(251,191,36,.12); }
+}
+.ti-compare { margin:0 0 14px; overflow-x:auto; border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+.ti-compare table { width:100%; border-collapse:collapse; font-size:12.5px; }
+.ti-compare th, .ti-compare td { text-align:left; padding:4px 8px; border-bottom:1px solid var(--line); }
+.ti-compare th { color:var(--mut); font-weight:600; }
 .ti-stat { font-size:18px; margin:16px 0 4px; }
 .ti-stat b { color:var(--bar); }
 .ti-note { color:var(--mut); font-size:13px; margin:0 0 16px; }

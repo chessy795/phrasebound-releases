@@ -61,6 +61,13 @@
         <div class="opt-card opt-routing">
           <h2>Webpages and feeds</h2>
           <label class="opt-toggle">
+            <input type="checkbox" id="chkAllSites">
+            <div>
+              <strong>Word lookup and tools on every website</strong>
+              <span>By default the extension runs only on the supported video sites. Turn this on to look up words and use image tools on any page. Chrome will ask you to allow access to all sites.</span>
+            </div>
+          </label>
+          <label class="opt-toggle">
             <input type="checkbox" id="chkAutoWebReadings">
             <div>
               <strong>Automatically add reading aids to original text</strong>
@@ -99,8 +106,8 @@
           <label class="opt-toggle">
             <input type="checkbox" id="cloudFallback">
             <div>
-              <strong>Use a cloud service when local translation is unavailable</strong>
-              <span>Off by default. When off, pages are translated by the local model or Chrome's on-device translator only, and no page text is sent to Google or Microsoft.</span>
+              <strong>With "Local AI first": use the web service when local translation is unavailable</strong>
+              <span>Only matters when a service is set to "Local AI first". When off, that service uses the local model or Chrome's on-device translator only, and sends no text to Google or Microsoft. The default "Web service" always sends the text to be translated to Google or Microsoft.</span>
             </div>
           </label>
           <label class="opt-toggle">
@@ -551,6 +558,7 @@
       </section>
     </main>
   </div>
+  <script src="web-targets.js"></script>
   <script src="options.js"></script><script src="evidence_export.js"></script>
   <script src="user-dictionaries.js"></script><script src="dictionary-options.js"></script>
 </body>

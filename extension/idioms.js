@@ -206,20 +206,20 @@
 
   const isCjkLang = (lang) => /^(?:zh|yue|ja|ko)$/.test(normLang(lang));
 
-  // Full 12-language x 9-layer native phraseological terminology (熟语 / 熟語 / 숙어 / fraseología / Phraseologismen / фразеологизмы / sawikain)
+  // Full 12-language x 10-layer native phraseological terminology (incl. famous lines / quotes)
   const NATIVE_LABELS = {
-    zh:  { classical: '成语', proverb: '谚语 / 俗语', idiom: '惯用语', riddle: '歇后语', slang: '流行语', social: '客套话', frame: '句式', colloc: '搭配', playful: '俏皮话 / 顺口溜' },
-    yue: { classical: '成語', proverb: '俗語 / 諺語', idiom: '慣用語', riddle: '歇後語', slang: '俚語 / 潮語', social: '客套話', frame: '句式', colloc: '搭配', playful: '鬼馬 / 歇後語' },
-    ja:  { classical: '四字熟語 / 故事成語', proverb: 'ことわざ', idiom: '慣用句', slang: '若者言葉', social: '決まり文句 / 挨拶', frame: '文型', colloc: '連語', playful: '言葉遊び' },
-    ko:  { classical: '사자성어 / 고사성어', proverb: '속담', idiom: '관용구', slang: '신조어', social: '인사말', frame: '문형', colloc: '연어', playful: '말장난' },
-    en:  { classical: 'classical allusion', proverb: 'proverb', idiom: 'idiom', riddle: 'Wellerism', phrasal: 'phrasal verb', slang: 'slang', social: 'social formula', frame: 'sentence frame', colloc: 'collocation', playful: 'playful' },
-    es:  { classical: 'latinismo', proverb: 'refrán', idiom: 'modismo / locución', slang: 'jerga juvenil', social: 'fórmula de cortesía', frame: 'estructura', colloc: 'colocación', playful: 'expresión juguetona' },
-    fr:  { classical: 'locution latine', proverb: 'proverbe / dicton', idiom: 'expression idiomatique', slang: 'argot / verlan', social: 'formule de politesse', frame: 'tournure', colloc: 'collocation', playful: 'jeu de mots' },
-    de:  { classical: 'geflügelte Worte', proverb: 'Sprichwort', idiom: 'Redewendung', riddle: 'Sagwort', phrasal: 'trennbares Verb', slang: 'Jugendsprache', social: 'Höflichkeitsformel', frame: 'Satzmuster', colloc: 'Kollokation', playful: 'Wortspiel' },
-    pt:  { classical: 'latinismo', proverb: 'provérbio / ditado', idiom: 'expressão idiomática', slang: 'gíria', social: 'fórmula de cortesia', frame: 'estrutura', colloc: 'colocação', playful: 'expressão divertida' },
-    it:  { classical: 'locuzione latina', proverb: 'proverbio', idiom: 'modo di dire', slang: 'gergo giovanile', social: 'formula di cortesia', frame: 'costrutto', colloc: 'collocazione', playful: 'gioco di parole' },
-    ru:  { classical: 'крылатые выражения', proverb: 'пословица / поговорка', idiom: 'фразеологизм', slang: 'сленг', social: 'речевой этикет', frame: 'конструкция', colloc: 'словосочетание', playful: 'игра слов' },
-    tl:  { proverb: 'salawikain', idiom: 'sawikain / idyoma', slang: 'balbal', social: 'magalang na pananalita', frame: 'balangkas', colloc: 'kolokasyon', playful: 'mapaglarong kasabihan' },
+    zh:  { classical: '成语', proverb: '谚语 / 俗语', idiom: '惯用语', riddle: '歇后语', slang: '流行语', social: '客套话', frame: '句式', colloc: '搭配', playful: '俏皮话 / 顺口溜', quote: '名句 / 诗句' },
+    yue: { classical: '成語', proverb: '俗語 / 諺語', idiom: '慣用語', riddle: '歇後語', slang: '俚語 / 潮語', social: '客套話', frame: '句式', colloc: '搭配', playful: '鬼馬 / 歇後語', quote: '名句 / 詩詞' },
+    ja:  { classical: '四字熟語 / 故事成語', proverb: 'ことわざ', idiom: '慣用句', slang: '若者言葉', social: '決まり文句 / 挨拶', frame: '文型', colloc: '連語', playful: '言葉遊び', quote: '名言 / 名句' },
+    ko:  { classical: '사자성어 / 고사성어', proverb: '속담', idiom: '관용구', slang: '신조어', social: '인사말', frame: '문형', colloc: '연어', playful: '말장난', quote: '명언 / 명시' },
+    en:  { classical: 'classical allusion', proverb: 'proverb', idiom: 'idiom', riddle: 'Wellerism', phrasal: 'phrasal verb', slang: 'slang', social: 'social formula', frame: 'sentence frame', colloc: 'collocation', playful: 'playful', quote: 'famous line' },
+    es:  { classical: 'latinismo', proverb: 'refrán', idiom: 'modismo / locución', slang: 'jerga juvenil', social: 'fórmula de cortesía', frame: 'estructura', colloc: 'colocación', playful: 'expresión juguetona', quote: 'cita célebre' },
+    fr:  { classical: 'locution latine', proverb: 'proverbe / dicton', idiom: 'expression idiomatique', slang: 'argot / verlan', social: 'formule de politesse', frame: 'tournure', colloc: 'collocation', playful: 'jeu de mots', quote: 'citation célèbre' },
+    de:  { classical: 'geflügelte Worte', proverb: 'Sprichwort', idiom: 'Redewendung', riddle: 'Sagwort', phrasal: 'trennbares Verb', slang: 'Jugendsprache', social: 'Höflichkeitsformel', frame: 'Satzmuster', colloc: 'Kollokation', playful: 'Wortspiel', quote: 'geflügeltes Wort' },
+    pt:  { classical: 'latinismo', proverb: 'provérbio / ditado', idiom: 'expressão idiomática', slang: 'gíria', social: 'fórmula de cortesia', frame: 'estrutura', colloc: 'colocação', playful: 'expressão divertida', quote: 'citação' },
+    it:  { classical: 'locuzione latina', proverb: 'proverbio', idiom: 'modo di dire', slang: 'gergo giovanile', social: 'formula di cortesia', frame: 'costrutto', colloc: 'collocazione', playful: 'gioco di parole', quote: 'citazione' },
+    ru:  { classical: 'крылатые выражения', proverb: 'пословица / поговорка', idiom: 'фразеологизм', slang: 'сленг', social: 'речевой этикет', frame: 'конструкция', colloc: 'словосочетание', playful: 'игра слов', quote: 'крылатая фраза' },
+    tl:  { proverb: 'salawikain', idiom: 'sawikain / idyoma', slang: 'balbal', social: 'magalang na pananalita', frame: 'balangkas', colloc: 'kolokasyon', playful: 'mapaglarong kasabihan', quote: 'kilalang linya' },
   };
 
   const resolveNativeLabel = (layer, type, langCode, explicitNative = '', isPlay = false) => {
@@ -228,6 +228,7 @@
     const s = `${layer || ''} ${type || ''}`.toLowerCase();
     if (isPlay || /\bplay(?:ful)?\b/.test(s)) return tbl.playful || 'playful';
     if (explicitNative) return explicitNative;
+    if (/\b(?:quote|poem|quotation|famous)\b|名句|名言|명언|citazione|citação|citation|cita célebre|крылатая фраза|kilalang linya/.test(s)) return tbl.quote || tbl.classical || '';
     if (/classical|allusion|chengyu|yojijukugo|sajaseongeo|winged|latinism|成语|成語|四字熟語|故事成語|사자성어|고사성어|крылат|geflügelt/.test(s)) return tbl.classical || tbl.idiom || '';
     if (/riddle|xiehouyu|wellerism|sagwort|歇后语|歇後語/.test(s)) return tbl.riddle || tbl.proverb || '';
     if (/proverb|saying|refrán|sprichwort|ditado|пословиц|поговорк|salawikain|谚语|諺語|ことわざ|속담/.test(s)) return tbl.proverb || '';
@@ -239,15 +240,113 @@
     return tbl.idiom || '';
   };
 
-  // Canonical 4-bucket layer classifier across all 12 languages
+  // Canonical 6-bucket layer classifier across all 12 languages
   const classifyLayer = (layer, type) => {
     const l = String(layer || '').toLowerCase();
     const t = String(type || '').toLowerCase();
     const s = l + ' ' + t;
+    if (l === 'codemix' || t === 'codemix' || /code[- ]?mix/.test(s)) return 'codemix';
+    if (l === 'quote' || t === 'quote' || /\b(?:quote|poem|quotation)\b/.test(s)) return 'quote';
     if (l === 'frame' || /frame|pattern|construction|snowclone|correlative|estructura|tournure|satzmuster|costrutto|конструкц|句式|文型|문형/.test(s)) return 'frame';
     if (l === 'collocation' || /collocation|colocación|kollokation|colocação|collocazione|словосочетан|kolokasyon|lvc|light verb|搭配|連語|연어/.test(s)) return 'colloc';
     if (l === 'slang' || l === 'social' || l === 'set phrase' || /slang|social|set phrase|cultural|greeting|discourse|argot|verlan|jerga|jugendsprache|gíria|gergo|сленг|balbal|politesse|cortesía|cortesia|höflichkeit|этикет|magalang|挨拶|決まり文句|若者言葉|신조어|인사말|俚|潮語|流行语|客套/.test(s)) return 'slang';
     return 'idiom';
+  };
+
+  // L1-adaptive transfer classifier: distinguishes "free transfer" (congruent L1 equivalent)
+  // from "L1 trap" (false friend, deceptive transparency, or opaque literal-divergent idiom).
+  const classifyL1Transfer = (fe, srcLang, uiLang, sidecar = null) => {
+    if (!fe || fe.isQuote || fe.bucket === 'quote') return null;
+    const src = normLang(srcLang || 'en');
+    const ui = normLang(uiLang || 'en');
+    if (!src || !ui || src === ui) return null;
+
+    if (fe.falseFriend) {
+      return { kind: 'trap', label: 'L1 trap · false friend', detail: fe.falseFriend };
+    }
+    const eqMap = fe.eq && typeof fe.eq === 'object' ? fe.eq : null;
+    let eqText = '';
+    if (eqMap) {
+      eqText = eqMap[ui] || (ui === 'yue' ? eqMap.zh : (ui === 'zh' ? eqMap.yue : '')) || '';
+    }
+    if (!eqText && sidecar && sidecar.items) {
+      const k1 = String(fe.pattern || '').toLowerCase();
+      const k2 = String(fe.display || '').toLowerCase();
+      const hit = sidecar.items[fe.pattern] || sidecar.items[fe.display] || sidecar.items[k1] || sidecar.items[k2];
+      if (hit && hit.eq) eqText = String(hit.eq);
+    }
+    const sharedCjk = Boolean(
+      eqText && /^(?:zh|yue|ja|ko)$/.test(src) && /^(?:zh|yue|ja|ko)$/.test(ui) && (fe.hanja || fe._zhEq || eqMap?.zh)
+    );
+    if (eqText && !fe.deceptive) {
+      return {
+        kind: 'congruent',
+        label: sharedCjk ? 'Free transfer · shared character idiom' : 'Free transfer from your L1',
+        eq: eqText,
+        detail: `Matches your L1: ${eqText}`,
+      };
+    }
+    if (fe.deceptive || (fe.lit && !fe.isBundle)) {
+      return {
+        kind: 'trap',
+        label: fe.deceptive ? 'L1 trap · deceptive literal' : 'L1 trap · non-literal',
+        detail: fe.lit ? `Literally "${fe.lit}" — meaning diverges from word-for-word reading` : 'Looks literal, but used non-literally here',
+      };
+    }
+    return null;
+  };
+
+  // Bilingual code-mixing matcher: detects English idioms/phrasal verbs embedded inside
+  // Cantonese (HK), Taglish, Mandarin, Japanese, or Korean subtitles.
+  const matchCodeMixEn = (text, enFeIndex, enLang, opts = {}) => {
+    if (!text || !enFeIndex || !enLang) return [];
+    const s = String(text);
+    const out = [];
+    const re = /[A-Za-z][A-Za-z0-9'’-]{1,}(?:\s+[A-Za-z][A-Za-z0-9'’-]{1,}){1,9}/g;
+    let m;
+    while ((m = re.exec(s)) !== null) {
+      const chunk = m[0];
+      const baseOff = m.index;
+      const toks = enLang.split(chunk);
+      const hits = matchTokens(toks, enLang, enFeIndex, opts) || [];
+      const starts = [];
+      let off = 0;
+      for (const tk of toks) { starts.push(off); off += tk.w.length; }
+      for (const h of hits) {
+        if (!h || h.isBundle || h.litRisk) continue;
+        if (h.idiomPrior != null && h.idiomPrior < 0.35) continue;
+        const t0 = h.startRaw != null && starts[h.startRaw] != null ? baseOff + starts[h.startRaw] : baseOff;
+        const lastTk = h.endRaw != null && toks[h.endRaw] ? toks[h.endRaw] : null;
+        const t1 = (h.endRaw != null && starts[h.endRaw] != null && lastTk)
+          ? baseOff + starts[h.endRaw] + lastTk.w.length
+          : t0 + String(h.surface || h.display || '').length;
+        const surface = s.slice(t0, t1);
+        if (!surface || surface.length < 4) continue;
+        let gloss = h.gloss || '';
+        let glossZh = h.glossZh || '';
+        if (opts.enGlossMap && !gloss) {
+          const eg = opts.enGlossMap[String(h.display || '').toLowerCase()];
+          if (Array.isArray(eg)) { gloss = eg[0] || ''; glossZh = eg[1] || ''; }
+        }
+        out.push(Object.assign({}, h, {
+          bucket: 'codemix',
+          layer: 'codemix',
+          native: 'EN code-mix',
+          codeMix: true,
+          codeMixLang: 'en',
+          charStart: t0,
+          charEnd: t1,
+          startRaw: undefined,
+          endRaw: undefined,
+          litRawSet: undefined,
+          surface,
+          anchorRanges: [[t0, t1]],
+          gloss,
+          glossZh,
+        }));
+      }
+    }
+    return out;
   };
 
   const BUNDLE_LAYERS = new Set(['frame', 'collocation']);
@@ -1814,7 +1913,153 @@
     };
   };
 
+  // ---- Famous Lines (Poems, Quotations & Cultural Catchphrases) Matcher ----
+  const _quoteCache = new WeakMap();
+  const _webQuoteIndexes = {};
+  const _webQuoteLoading = {};
+
+  const normalizeQuoteWithMap = (str, isCjk) => {
+    const s = String(str || '').normalize('NFKC');
+    let norm = '';
+    const map = [];
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      const base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      if (!base) continue;
+      if (/[\p{L}\p{N}]/u.test(base)) {
+        norm += base;
+        map.push(i);
+      } else if (!isCjk && norm && norm[norm.length - 1] !== ' ') {
+        norm += ' ';
+        map.push(i);
+      }
+    }
+    if (!isCjk && norm.endsWith(' ')) {
+      norm = norm.slice(0, -1);
+      map.pop();
+    }
+    return { norm, map };
+  };
+
+  const buildQuoteIndex = (quotesJson) => {
+    if (!quotesJson || !Array.isArray(quotesJson.items) || !quotesJson.items.length) return null;
+    const hit = _quoteCache.get(quotesJson);
+    if (hit) return hit;
+    const lang = normLang((quotesJson.meta && quotesJson.meta.lang) || 'en');
+    const isCjk = isCjkLang(lang);
+    const byHead = new Map();
+    const native = resolveNativeLabel('quote', 'quote', lang);
+
+    for (const row of quotesJson.items) {
+      if (!Array.isArray(row) || !row[0]) continue;
+      const [line, kind, author, work, partner, score, speechHits, variants, src] = row;
+      const entry = {
+        pattern: line,
+        display: line,
+        type: 'quote',
+        layer: 'quote',
+        bucket: 'quote',
+        native,
+        quoteKind: kind || 'quotation',
+        author: author || '',
+        work: work || '',
+        partner: partner || '',
+        quoteSrc: src || '',
+        speechHits: Number(speechHits || 0),
+        score: Number(score || 0),
+        isQuote: true,
+        isBundle: false,
+        priority: 9.5 + Math.min(2.5, Number(score || 0) / 10),
+        maxBand: 5,
+      };
+      const forms = Array.isArray(variants) && variants.length ? variants : [line];
+      const seenForm = new Set();
+      for (const vf of forms) {
+        const { norm } = normalizeQuoteWithMap(vf, isCjk);
+        if (!norm || seenForm.has(norm)) continue;
+        if (isCjk ? norm.length < (lang === 'ja' || lang === 'ko' ? 6 : 5) : (norm.length < 16 || norm.split(' ').length < 4)) continue;
+        seenForm.add(norm);
+        const head = isCjk ? norm.slice(0, 2) : norm.split(' ')[0];
+        if (!head) continue;
+        let arr = byHead.get(head);
+        if (!arr) byHead.set(head, (arr = []));
+        arr.push({ qNorm: norm, entry });
+      }
+    }
+    const idx = { lang, isCjk, byHead };
+    _quoteCache.set(quotesJson, idx);
+    return idx;
+  };
+
+  const matchQuotes = (text, quoteIdx) => {
+    if (!quoteIdx || !text) return [];
+    const s = String(text);
+    const { norm, map } = normalizeQuoteWithMap(s, quoteIdx.isCjk);
+    if (!norm || (quoteIdx.isCjk ? norm.length < 5 : norm.length < 16)) return [];
+
+    const candidates = [];
+    if (quoteIdx.isCjk) {
+      const tried = new Set();
+      for (let i = 0; i <= norm.length - 2; i++) {
+        const key = norm.slice(i, i + 2);
+        if (tried.has(key)) continue;
+        tried.add(key);
+        const list = quoteIdx.byHead.get(key);
+        if (list) for (const cand of list) candidates.push(cand);
+      }
+    } else {
+      const tried = new Set();
+      for (const w of norm.split(' ')) {
+        if (!w || tried.has(w)) continue;
+        tried.add(w);
+        const list = quoteIdx.byHead.get(w);
+        if (list) for (const cand of list) candidates.push(cand);
+      }
+    }
+    if (!candidates.length) return [];
+    candidates.sort((a, b) => b.qNorm.length - a.qNorm.length);
+
+    const out = [];
+    const occupied = [];
+    const seenPat = new Set();
+    for (const { qNorm, entry } of candidates) {
+      if (seenPat.has(entry.pattern)) continue;
+      let searchAt = 0;
+      while (searchAt <= norm.length - qNorm.length) {
+        const pos = norm.indexOf(qNorm, searchAt);
+        if (pos < 0) break;
+        searchAt = pos + 1;
+        if (!quoteIdx.isCjk) {
+          const leftOk = pos === 0 || norm[pos - 1] === ' ';
+          const rightOk = pos + qNorm.length === norm.length || norm[pos + qNorm.length] === ' ';
+          if (!leftOk || !rightOk) continue;
+        }
+        const endNorm = pos + qNorm.length - 1;
+        if (occupied.some(([a, b]) => pos <= b && endNorm >= a)) continue;
+        occupied.push([pos, endNorm]);
+        seenPat.add(entry.pattern);
+        const origStart = map[pos];
+        const origEnd = map[endNorm] + 1;
+        const surface = s.slice(origStart, origEnd);
+        const cite = [entry.author, entry.work].filter(Boolean).join(' · ');
+        out.push(Object.assign({}, entry, {
+          charStart: origStart,
+          charEnd: origEnd,
+          surface,
+          anchorRanges: [[origStart, origEnd]],
+          gloss: cite || entry.partner || '',
+        }));
+        break;
+      }
+    }
+    return out;
+  };
+
   const analyzeVideo = (lines, L, lang, bands, ranks, wordsMap, feIndex, opts = {}) => {
+    const quoteIndex = opts.quoteIndex || null;
+    const codeMixIndex = opts.codeMixIndex || null;
+    const codeMixLang = opts.codeMixLang || null;
+    const enGlossMap = opts.enGlossMap || null;
     const rateEdges = opts.rateEdges || [130, 160, 190, 220];
     const coverThreshold = opts.coverThreshold || 0.85;
     const vocabLevel = opts.vocabLevel || 2000;
@@ -1892,12 +2137,49 @@
       }
 
       const hits = feIndex ? (feIndex.cjk ? matchCjk(ln.t, feIndex) : matchTokens(toks, L, feIndex, opts)) : [];
-      if (feIndex && feIndex.cjk && hits.length && toks.map((x) => x.w).join('') === ln.t) {
+      if (quoteIndex) {
+        const qHits = matchQuotes(ln.t, quoteIndex);
+        for (const qm of qHits) {
+          const q0 = qm.charStart, q1 = qm.charEnd;
+          const overlap = hits.find((h) => {
+            if (h.pattern === qm.pattern || h.display === qm.display) return true;
+            const h0 = h.charStart != null ? h.charStart : -1;
+            const h1 = h.charEnd != null ? h.charEnd : (h0 >= 0 && h.surface ? h0 + h.surface.length : -1);
+            return h0 >= 0 && h1 > q0 && h0 < q1;
+          });
+          if (overlap) {
+            overlap.author = overlap.author || qm.author;
+            overlap.work = overlap.work || qm.work;
+            overlap.partner = overlap.partner || qm.partner;
+            overlap.quoteKind = overlap.quoteKind || qm.quoteKind;
+            overlap.quoteSrc = overlap.quoteSrc || qm.quoteSrc;
+            overlap.isQuote = true;
+            if (!overlap.gloss && qm.gloss) overlap.gloss = qm.gloss;
+          } else {
+            hits.push(qm);
+          }
+        }
+      }
+      if (codeMixIndex && codeMixLang && /[A-Za-z]{2,}\s+[A-Za-z]{2,}/.test(ln.t)) {
+        const cmHits = matchCodeMixEn(ln.t, codeMixIndex, codeMixLang, { enGlossMap });
+        for (const cm of cmHits) {
+          const c0 = cm.charStart, c1 = cm.charEnd;
+          const dup = hits.some((h) => {
+            if (h.pattern === cm.pattern || h.display === cm.display) return true;
+            const h0 = h.charStart != null ? h.charStart : -1;
+            const h1 = h.charEnd != null ? h.charEnd : (h0 >= 0 && h.surface ? h0 + h.surface.length : -1);
+            return h0 >= 0 && h1 > c0 && h0 < c1;
+          });
+          if (!dup) hits.push(cm);
+        }
+      }
+      if (hits.length && toks.map((x) => x.w).join('') === ln.t) {
         const starts = [];
         let off = 0;
         for (const tk of toks) { starts.push(off); off += tk.w.length; }
         for (const m of hits) {
-          const a0 = m.charStart, a1 = m.charStart + m.surface.length;
+          if (m.charStart == null || (m.startRaw != null && m.endRaw != null)) continue;
+          const a0 = m.charStart, a1 = m.charEnd != null ? m.charEnd : m.charStart + m.surface.length;
           const idxs = [];
           const anchorIdxs = [];
           const ranges = m.anchorRanges || [[a0, a1]];
@@ -1946,6 +2228,15 @@
             glossMap: m.glossMap || null,
             litRisk: Boolean(m.litRisk),
             play: Boolean(m.play),
+            codeMix: Boolean(m.codeMix),
+            codeMixLang: m.codeMixLang || '',
+            isQuote: Boolean(m.isQuote || m.bucket === 'quote'),
+            quoteKind: m.quoteKind || '',
+            author: m.author || '',
+            work: m.work || '',
+            partner: m.partner || '',
+            quoteSrc: m.quoteSrc || '',
+            speechHits: m.speechHits || 0,
             senses: m.senses || null,
             idiomPrior: m.idiomPrior != null ? m.idiomPrior : null,
             opacity: m.opacity || 0,
@@ -2366,21 +2657,57 @@
   };
 
   const setWebFeIndexForTest = (lang, idx) => { _webFeIndexes[normLang(lang)] = idx; };
+  const setWebQuoteIndexForTest = (lang, idx) => { _webQuoteIndexes[normLang(lang)] = idx; };
+  const ensureWebQuoteIndex = (lang) => {
+    const l = normLang(lang || 'en');
+    if (Object.prototype.hasOwnProperty.call(_webQuoteIndexes, l) && _webQuoteIndexes[l]) return Promise.resolve(_webQuoteIndexes[l]);
+    if (Object.prototype.hasOwnProperty.call(_webQuoteLoading, l) && _webQuoteLoading[l]) return _webQuoteLoading[l];
+    if (typeof chrome === 'undefined' || !chrome.runtime) return Promise.resolve(null);
+    _webQuoteLoading[l] = fetchExtJsonSafe(`quotes_${l}.json`)
+      .then((qJson) => {
+        const idx = qJson ? buildQuoteIndex(qJson) : null;
+        _webQuoteIndexes[l] = idx;
+        return idx;
+      })
+      .finally(() => { delete _webQuoteLoading[l]; });
+    return _webQuoteLoading[l];
+  };
   const findInText = (text, uiLang = 'en', explicitSrcLang = '', options = {}) => {
     const s = String(text || '').trim();
     if (!s) return [];
     const srcLang = explicitSrcLang ? normLang(explicitSrcLang) : detectTextLangQuick(s);
     const idx = _webFeIndexes[srcLang];
-    if (!idx) {
+    const qIdx = _webQuoteIndexes[srcLang] || null;
+    if (!qIdx) ensureWebQuoteIndex(srcLang);
+    if (!idx && !qIdx) {
       ensureWebFeIndex(srcLang);
       loadWebSidecar(srcLang, uiLang);
       return [];
     }
     const sidecar = _webSidecars[`${srcLang}_${normLang(uiLang || 'en')}`] || null;
     if (!sidecar && normLang(uiLang || 'en') !== srcLang) loadWebSidecar(srcLang, uiLang);
-    if (idx.cjk) {
+    const mapQuoteHit = (qm) => ({
+      phrase: qm.display,
+      canonical: qm.display,
+      surface: qm.surface,
+      start: qm.charStart,
+      end: qm.charEnd,
+      anchorRanges: qm.anchorRanges,
+      reading: '',
+      bucket: 'quote',
+      type: 'quote',
+      native: qm.native,
+      litRisk: false,
+      play: false,
+      isQuote: true,
+      author: qm.author,
+      work: qm.work,
+      partner: qm.partner,
+      gloss: qm.gloss,
+    });
+    if (idx && idx.cjk) {
       const hits = matchCjk(s, idx, srcLang === 'ja' && options.patterns === true);
-      return (hits || []).filter((h) => !h.isBundle || h.bucket === 'frame').sort((a, b) => (a.litRisk ? 1 : 0) - (b.litRisk ? 1 : 0)).map((h) => {
+      const mapped = (hits || []).filter((h) => !h.isBundle || h.bucket === 'frame').sort((a, b) => (a.litRisk ? 1 : 0) - (b.litRisk ? 1 : 0)).map((h) => {
         const surf = h.surface || h.display || '';
         return {
           phrase: h.display,
@@ -2398,42 +2725,60 @@
           gloss: resolveFeGloss(h, uiLang, { sidecar }).text || h.gloss || h.glossZh || '',
         };
       });
+      if (qIdx) {
+        for (const qm of matchQuotes(s, qIdx)) {
+          if (!mapped.some((m) => m.phrase === qm.display || (m.start != null && m.end > qm.charStart && m.start < qm.charEnd))) {
+            mapped.push(mapQuoteHit(qm));
+          }
+        }
+      }
+      return mapped;
     }
     const langHub = (typeof globalThis !== 'undefined' && globalThis.SS_LANG) ? globalThis.SS_LANG : null;
-    if (!langHub || typeof langHub.get !== 'function') return [];
-    const L = langHub.get(srcLang);
-    const toks = L.split(s);
-    const matches = matchTokens(toks, L, idx);
-    return (matches || []).filter((m) => !m.isBundle).sort((a, b) => (a.litRisk ? 1 : 0) - (b.litRisk ? 1 : 0)).map((m) => {
-      if (srcLang === 'en' && idx._enGloss && !m.gloss) {
-        const eg = idx._enGloss[String(m.display || '').toLowerCase()];
-        if (Array.isArray(eg)) { m.gloss = eg[0] || ''; m.glossZh = eg[1] || ''; }
+    const mapped = [];
+    if (idx && langHub && typeof langHub.get === 'function') {
+      const L = langHub.get(srcLang);
+      const toks = L.split(s);
+      const matches = matchTokens(toks, L, idx);
+      for (const m of (matches || []).filter((m) => !m.isBundle).sort((a, b) => (a.litRisk ? 1 : 0) - (b.litRisk ? 1 : 0))) {
+        if (srcLang === 'en' && idx._enGloss && !m.gloss) {
+          const eg = idx._enGloss[String(m.display || '').toLowerCase()];
+          if (Array.isArray(eg)) { m.gloss = eg[0] || ''; m.glossZh = eg[1] || ''; }
+        }
+        const surface = m.surface || m.display || '';
+        const pos = typeof m.charStart === 'number' ? m.charStart : s.toLowerCase().indexOf(String(surface).toLowerCase());
+        mapped.push({
+          phrase: m.display,
+          canonical: m.display,
+          surface,
+          start: pos >= 0 ? pos : undefined,
+          end: typeof m.charEnd === 'number' ? m.charEnd : (pos >= 0 ? pos + surface.length : undefined),
+          anchorRanges: m.anchorRanges || null,
+          reading: m.reading || '',
+          bucket: m.bucket,
+          type: m.type || '',
+          native: m.native || '',
+          litRisk: Boolean(m.litRisk),
+          play: Boolean(m.play),
+          gloss: resolveFeGloss(m, uiLang, { sidecar, enGlossMap: idx._enGloss || null }).text || m.gloss || '',
+        });
       }
-      const surface = m.surface || m.display || '';
-      const pos = typeof m.charStart === 'number' ? m.charStart : s.toLowerCase().indexOf(String(surface).toLowerCase());
-      return {
-        phrase: m.display,
-        canonical: m.display,
-        surface,
-        start: pos >= 0 ? pos : undefined,
-        end: typeof m.charEnd === 'number' ? m.charEnd : (pos >= 0 ? pos + surface.length : undefined),
-        anchorRanges: m.anchorRanges || null,
-        reading: m.reading || '',
-        bucket: m.bucket,
-        type: m.type || '',
-        native: m.native || '',
-        litRisk: Boolean(m.litRisk),
-        play: Boolean(m.play),
-        gloss: resolveFeGloss(m, uiLang, { sidecar, enGlossMap: idx._enGloss || null }).text || m.gloss || '',
-      };
-    });
+    }
+    if (qIdx) {
+      for (const qm of matchQuotes(s, qIdx)) {
+        if (!mapped.some((m) => m.phrase === qm.display || (m.start != null && m.end > qm.charStart && m.start < qm.charEnd))) {
+          mapped.push(mapQuoteHit(qm));
+        }
+      }
+    }
+    return mapped;
   };
 
   const findInTextAsync = async (text, uiLang = 'en', explicitSrcLang = '') => {
     const s = String(text || '').trim();
     if (!s) return [];
     const srcLang = explicitSrcLang ? normLang(explicitSrcLang) : detectTextLangQuick(s);
-    await Promise.all([ensureWebFeIndex(srcLang), loadWebSidecar(srcLang, uiLang)]);
+    await Promise.all([ensureWebFeIndex(srcLang), ensureWebQuoteIndex(srcLang), loadWebSidecar(srcLang, uiLang)]);
     return findInText(s, uiLang, srcLang);
   };
 
@@ -2516,20 +2861,26 @@
     findInText,
     findInTextAsync,
     setWebFeIndexForTest,
+    setWebQuoteIndexForTest,
     ensureWebFeIndex,
+    ensureWebQuoteIndex,
     resolveNativeLabel,
     NATIVE_LABELS,
     isCjkLang,
     classifyLayer,
+    classifyL1Transfer,
     patternizePhrase,
     splitGermanSepVerb,
     resolveFeGloss,
     blankPhraseInLine,
     buildFeIndex,
     buildCjkIndex,
+    buildQuoteIndex,
     cjkFeFiles,
     matchCjk,
     matchTokens,
+    matchQuotes,
+    matchCodeMixEn,
     classifyFreqBand,
     analyzeSentence1T,
     analyzeVideo,
